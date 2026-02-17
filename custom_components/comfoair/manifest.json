@@ -4,12 +4,12 @@
     "codeowners": [
         "@remmob"
     ],
-    "documentation": "https://github.com/remmob/comfoair",
     "config_flow": true,
+    "documentation": "https://github.com/remmob/comfoair",
     "iot_class": "local_polling",
-    "version": "1.0.0",
     "requirements": [
         "pymodbus>=3.6.9",
         "pyserial>=3.5"
-    ]
+    ],
+    "version": "1.0.0"
 }
