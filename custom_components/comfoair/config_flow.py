@@ -65,14 +65,7 @@ def _connection_unique_id(data: dict) -> str:
 
 
 def _device_id_selector(default_value: int):
-    return selector.NumberSelector(
-        selector.NumberSelectorConfig(
-            min=1,
-            max=247,
-            step=1,
-            mode=selector.NumberSelectorMode.BOX,
-        )
-    )
+    return vol.In([DEFAULT_DEVICE_ID])
 
 
 def _control_type_selector(default_value: str):
@@ -90,8 +83,7 @@ def _control_type_selector(default_value: str):
 
 def _normalize_device_id(data: dict) -> dict:
     normalized = dict(data)
-    if CONF_DEVICE_ID in normalized:
-        normalized[CONF_DEVICE_ID] = int(normalized[CONF_DEVICE_ID])
+    normalized[CONF_DEVICE_ID] = DEFAULT_DEVICE_ID
     return normalized
 
 
@@ -132,7 +124,7 @@ class ComfoAirConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, user_input=None) -> FlowResult:
         if user_input is not None:
-            self._data = user_input.copy()
+            self._data = _normalize_device_id(user_input)
             if self._data[CONF_MODE] == MODE_SERIAL:
                 return await self.async_step_serial()
             return await self.async_step_tcp()
@@ -281,7 +273,7 @@ class ComfoAirConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if not self._reconfigure_data:
             self._reconfigure_data = {
                 CONF_NAME: entry.data.get(CONF_NAME, DEFAULT_NAME),
-                CONF_DEVICE_ID: entry.data.get(CONF_DEVICE_ID, DEFAULT_DEVICE_ID),
+                CONF_DEVICE_ID: DEFAULT_DEVICE_ID,
                 CONF_MODE: entry.data.get(CONF_MODE, MODE_TCP),
                 CONF_CONTROL_TYPE: entry.data.get(CONF_CONTROL_TYPE, DEFAULT_CONTROL_TYPE),
             }
@@ -302,7 +294,7 @@ class ComfoAirConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ): str,
                     vol.Required(
                         CONF_DEVICE_ID,
-                        default=self._reconfigure_data.get(CONF_DEVICE_ID, DEFAULT_DEVICE_ID),
+                        default=DEFAULT_DEVICE_ID,
                     ): _device_id_selector(self._reconfigure_data.get(CONF_DEVICE_ID, DEFAULT_DEVICE_ID)),
                     vol.Required(
                         CONF_MODE,
@@ -474,7 +466,7 @@ class ComfoAirOptionsFlow(config_entries.OptionsFlow):
                 {
                     vol.Required(
                         CONF_DEVICE_ID,
-                        default=self.config_entry.data.get(CONF_DEVICE_ID, DEFAULT_DEVICE_ID),
+                        default=DEFAULT_DEVICE_ID,
                     ): _device_id_selector(self.config_entry.data.get(CONF_DEVICE_ID, DEFAULT_DEVICE_ID)),
                     vol.Required(
                         CONF_DEVICE,
@@ -510,7 +502,7 @@ class ComfoAirOptionsFlow(config_entries.OptionsFlow):
                 {
                     vol.Required(
                         CONF_DEVICE_ID,
-                        default=self.config_entry.data.get(CONF_DEVICE_ID, DEFAULT_DEVICE_ID),
+                        default=DEFAULT_DEVICE_ID,
                     ): _device_id_selector(self.config_entry.data.get(CONF_DEVICE_ID, DEFAULT_DEVICE_ID)),
                     vol.Required(
                         CONF_HOST,

@@ -70,7 +70,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         name=name,
         scan_interval=scan_interval,
         mode=mode,
-        device_id=entry.data.get(CONF_DEVICE_ID, DEFAULT_DEVICE_ID),
+        device_id=DEFAULT_DEVICE_ID,
         host=entry.data.get(CONF_HOST),
         port=entry.data.get(CONF_PORT),
         device=entry.data.get(CONF_DEVICE),
