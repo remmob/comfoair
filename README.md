@@ -31,7 +31,7 @@ More info and updates:
 ## Hardware Requirements
 This integration uses modbus to connect to the Zehnder E300/E400 unit.
 
-![Display](images/display.png)
+![Display](Images/Display.png)
 
 You can use a USB to RS485 adapter to connect to the unit. The adapter should be connected to the Modbus port on the unit.<br/>
 A+ to A and B- to B, if you receive no data, try to swap the A and B wires.
@@ -44,13 +44,13 @@ Like a Elfin EW-11
  The integration suports both Modbus RTU (via USB) and Modbus TCP (via WiFi/Ethernet).
 <br/>Go to the Integrations page in Home Assistant and click on "Add Integration". Search for "Zehnder ComfoAir" and select it.
 
- ![start](images/start.png)
+ ![start](Images/Start.png)
 
  To identify this unit, you have to give it a name (default: "zehnder") 
  The device ID cannot be changed and should be set to 1
  and select the connection type (RTU or TCP).
 
- ![RTU](images/rtu.png)
+ ![RTU](Images/RTU.png)
  
  The available serial ports on your system will be listed.
  Sins there is no way to change the connection settings, those are fixed and cannot be changed. The default settings are:
@@ -62,10 +62,10 @@ Like a Elfin EW-11
 For TCP connection, you need to provide the IP address and port of the Modbus TCP gateway. The default port is 502.
 In your modbus RTU to TCP gateway you need to set the above connection settings.
 
-![TCP](images/tcp.png)
+![TCP](Images/tcp.png)
 
 Last step is to select the type of unit RF, Analog, or 3-way switch. This will determine which registers are activated The registers of the not used type will be available but deactivated. <br/>You can change the type of unit later in the settings of the integration. <br/><br/>
-![control](images/control.png)
+![control](Images/Control.png)
 
 All settings can be reconfigured in the Comfoair device page
 [https://yourhomeassistanturl:8123/config/integrations/integration/comfoair](https://yourhomeassistanturl:8123/config/integrations/integration/comfoair)
