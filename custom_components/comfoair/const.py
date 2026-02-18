@@ -66,7 +66,7 @@ READ_RANGES = [
     (300, 16),
     (316, 4),
     (320, 2),
-    (328, 3),
+    (328, 4),
     (336, 1),
     (337, 2),
 ]
@@ -76,12 +76,19 @@ ON_OFF_STATUS = {
     1: "ON",
 }
 
+BATHROOM_SWITCH_STATUS = {
+    0: "off",
+    100: "on",
+}
+
 BOOLEAN_REGISTERS = {
     "318",
     "319",
     "337",
     "338",
 }
+
+BATHROOM_SWITCH_REGISTER = "331"
 
 
 @dataclass
@@ -103,6 +110,7 @@ SENSOR_TYPES: dict[str, ComfoAirModbusSensorEntityDescription] = {
     "300": ComfoAirModbusSensorEntityDescription(
         key="300",
         name="intake air temperature",
+        icon="mdi:thermometer",
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
@@ -113,6 +121,7 @@ SENSOR_TYPES: dict[str, ComfoAirModbusSensorEntityDescription] = {
     "301": ComfoAirModbusSensorEntityDescription(
         key="301",
         name="pre-heating temperature",
+        icon="mdi:thermometer",
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
@@ -123,6 +132,7 @@ SENSOR_TYPES: dict[str, ComfoAirModbusSensorEntityDescription] = {
     "303": ComfoAirModbusSensorEntityDescription(
         key="303",
         name="supply air temperature",
+        icon="mdi:thermometer",
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
@@ -133,6 +143,7 @@ SENSOR_TYPES: dict[str, ComfoAirModbusSensorEntityDescription] = {
     "304": ComfoAirModbusSensorEntityDescription(
         key="304",
         name="extract air temperature",
+        icon="mdi:thermometer",
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
@@ -143,6 +154,7 @@ SENSOR_TYPES: dict[str, ComfoAirModbusSensorEntityDescription] = {
     "305": ComfoAirModbusSensorEntityDescription(
         key="305",
         name="exhaust air temperature",
+        icon="mdi:thermometer",
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
@@ -153,6 +165,7 @@ SENSOR_TYPES: dict[str, ComfoAirModbusSensorEntityDescription] = {
     "306": ComfoAirModbusSensorEntityDescription(
         key="306",
         name="supply air humidity",
+        icon="mdi:water-percent",
         native_unit_of_measurement=PERCENTAGE,
         device_class=SensorDeviceClass.HUMIDITY,
         state_class=SensorStateClass.MEASUREMENT,
@@ -164,6 +177,7 @@ SENSOR_TYPES: dict[str, ComfoAirModbusSensorEntityDescription] = {
     "307": ComfoAirModbusSensorEntityDescription(
         key="307",
         name="exhaust air humidity",
+        icon="mdi:water-percent",
         native_unit_of_measurement=PERCENTAGE,
         device_class=SensorDeviceClass.HUMIDITY,
         state_class=SensorStateClass.MEASUREMENT,
@@ -175,6 +189,7 @@ SENSOR_TYPES: dict[str, ComfoAirModbusSensorEntityDescription] = {
     "308": ComfoAirModbusSensorEntityDescription(
         key="308",
         name="extract air humidity",
+        icon="mdi:water-percent",
         native_unit_of_measurement=PERCENTAGE,
         device_class=SensorDeviceClass.HUMIDITY,
         state_class=SensorStateClass.MEASUREMENT,
@@ -186,6 +201,7 @@ SENSOR_TYPES: dict[str, ComfoAirModbusSensorEntityDescription] = {
     "309": ComfoAirModbusSensorEntityDescription(
         key="309",
         name="intake air humidity",
+        icon="mdi:water-percent",
         native_unit_of_measurement=PERCENTAGE,
         device_class=SensorDeviceClass.HUMIDITY,
         state_class=SensorStateClass.MEASUREMENT,
@@ -197,6 +213,7 @@ SENSOR_TYPES: dict[str, ComfoAirModbusSensorEntityDescription] = {
     "310": ComfoAirModbusSensorEntityDescription(
         key="310",
         name="extract air fan",
+        icon="mdi:fan",
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=1,
@@ -207,6 +224,7 @@ SENSOR_TYPES: dict[str, ComfoAirModbusSensorEntityDescription] = {
     "311": ComfoAirModbusSensorEntityDescription(
         key="311",
         name="supply air fan",
+        icon="mdi:fan",
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=1,
@@ -217,6 +235,7 @@ SENSOR_TYPES: dict[str, ComfoAirModbusSensorEntityDescription] = {
     "312": ComfoAirModbusSensorEntityDescription(
         key="312",
         name="extract air flow",
+        icon="mdi:weather-windy",
         native_unit_of_measurement="m³/h",
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=0,
@@ -225,6 +244,7 @@ SENSOR_TYPES: dict[str, ComfoAirModbusSensorEntityDescription] = {
     "313": ComfoAirModbusSensorEntityDescription(
         key="313",
         name="supply air flow",
+        icon="mdi:weather-windy",
         native_unit_of_measurement="m³/h",
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=0,
@@ -233,6 +253,7 @@ SENSOR_TYPES: dict[str, ComfoAirModbusSensorEntityDescription] = {
     "314": ComfoAirModbusSensorEntityDescription(
         key="314",
         name="extract air fan speed",
+        icon="mdi:fan",
         native_unit_of_measurement=REVOLUTIONS_PER_MINUTE,
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=0,
@@ -241,6 +262,7 @@ SENSOR_TYPES: dict[str, ComfoAirModbusSensorEntityDescription] = {
     "315": ComfoAirModbusSensorEntityDescription(
         key="315",
         name="supply air fan speed",
+        icon="mdi:fan",
         native_unit_of_measurement=REVOLUTIONS_PER_MINUTE,
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=0,
@@ -248,31 +270,36 @@ SENSOR_TYPES: dict[str, ComfoAirModbusSensorEntityDescription] = {
     ),
     "316": ComfoAirModbusSensorEntityDescription(
         key="316",
-        name="analog voltage c1",
+        name="analog voltage C1",
+        icon="mdi:flash-triangle-outline",
         native_unit_of_measurement="V",
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=1,
-        scale=0.1,
+        scale=0.01,
     ),
     "317": ComfoAirModbusSensorEntityDescription(
         key="317",
         name="rf voltage",
+        icon="mdi:flash-triangle-outline",
         native_unit_of_measurement="V",
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=1,
-        scale=0.1,
+        scale=0.01,
     ),
     "318": ComfoAirModbusSensorEntityDescription(
         key="318",
         name="RF enabled",
+        icon="mdi:toggle-switch-outline",
     ),
     "319": ComfoAirModbusSensorEntityDescription(
         key="319",
         name="pre-heater state",
+        icon="mdi:toggle-switch-outline",
     ),
     "320": ComfoAirModbusSensorEntityDescription(
         key="320",
         name="extract air flow setpoint +- balance offset",
+        icon="mdi:weather-windy",
         native_unit_of_measurement="m³/h",
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=0,
@@ -281,6 +308,7 @@ SENSOR_TYPES: dict[str, ComfoAirModbusSensorEntityDescription] = {
     "321": ComfoAirModbusSensorEntityDescription(
         key="321",
         name="supply air flow setpoint",
+        icon="mdi:weather-windy",
         native_unit_of_measurement="m³/h",
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=0,
@@ -289,29 +317,37 @@ SENSOR_TYPES: dict[str, ComfoAirModbusSensorEntityDescription] = {
     "328": ComfoAirModbusSensorEntityDescription(
         key="328",
         name="0-10 v speed setting",
+        icon="mdi:speedometer",
         suggested_display_precision=0,
         scale=1.0,
     ),
     "329": ComfoAirModbusSensorEntityDescription(
         key="329",
         name="rf speed setting",
+        icon="mdi:speedometer",
         suggested_display_precision=0,
         scale=1.0,
     ),
     "330": ComfoAirModbusSensorEntityDescription(
         key="330",
         name="3-way switch",
+        icon="mdi:toggle-switch-outline",
         suggested_display_precision=0,
         scale=1.0,
     ),
-    "336": ComfoAirModbusSensorEntityDescription(
-        key="336",
-        name="runtime in days",
-        native_unit_of_measurement="days",
-        state_class=SensorStateClass.TOTAL_INCREASING,
-        suggested_display_precision=0,
-        scale=1.0,
+    "331": ComfoAirModbusSensorEntityDescription(
+        key="331",
+        name="bathroom switch",
+        icon="mdi:toggle-switch-outline",
     ),
+    # "336": ComfoAirModbusSensorEntityDescription(
+    #     key="336",
+    #     name="runtime in days",
+    #     native_unit_of_measurement="days",
+    #     state_class=SensorStateClass.TOTAL_INCREASING,
+    #     suggested_display_precision=0,
+    #     scale=1.0,
+    # ),
     "337": ComfoAirModbusSensorEntityDescription(
         key="337",
         name="fireplace mode on/off",

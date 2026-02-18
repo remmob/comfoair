@@ -17,7 +17,7 @@ See the [official HACS documentation](https://hacs.xyz/docs/faq/custom_repositor
 ### Manual
 
 1. Download or copy the `comfoair` folder from this repository:
-	[`custom_components/comfoair`](../itho_amber)
+	[`custom_components/comfoair`](../comfoair)
 2. Place this folder in your Home Assistant installation under:
 	`config/custom_components/comfoair`
 3. Restart Home Assistant.
@@ -31,7 +31,7 @@ More info and updates:
 ## Hardware Requirements
 This integration uses modbus to connect to the Zehnder E300/E400 unit.
 
-![Display](Images/Display.png)
+![Display](images/display.png)
 
 You can use a USB to RS485 adapter to connect to the unit. The adapter should be connected to the Modbus port on the unit.<br/>
 A+ to A and B- to B, if you receive no data, try to swap the A and B wires.
@@ -44,13 +44,13 @@ Like a Elfin EW-11
  The integration suports both Modbus RTU (via USB) and Modbus TCP (via WiFi/Ethernet).
 <br/>Go to the Integrations page in Home Assistant and click on "Add Integration". Search for "Zehnder ComfoAir" and select it.
 
- ![start](Images/Start.png)
+ ![start](images/start.png)
 
  To identify this unit, you have to give it a name (default: "zehnder") 
  The device ID cannot be changed and should be set to 1
  and select the connection type (RTU or TCP).
 
- ![RTU](Images/RTU.png)
+ ![RTU](images/rtu.png)
  
  The available serial ports on your system will be listed.
  Sins there is no way to change the connection settings, those are fixed and cannot be changed. The default settings are:
@@ -62,10 +62,10 @@ Like a Elfin EW-11
 For TCP connection, you need to provide the IP address and port of the Modbus TCP gateway. The default port is 502.
 In your modbus RTU to TCP gateway you need to set the above connection settings.
 
-![TCP](Images/tcp.png)
+![TCP](images/tcp.png)
 
 Last step is to select the type of unit RF, Analog, or 3-way switch. This will determine which registers are activated The registers of the not used type will be available but deactivated. <br/>You can change the type of unit later in the settings of the integration. <br/><br/>
-![control](Images/Control.png)
+![control](images/control.png)
 
 All settings can be reconfigured in the Comfoair device page
 [https://yourhomeassistanturl:8123/config/integrations/integration/comfoair](https://yourhomeassistanturl:8123/config/integrations/integration/comfoair)
@@ -92,7 +92,7 @@ All settings can be reconfigured in the Comfoair device page
 | 328      | 0-10 V speed setting                         | uint16   | %      | 1     | 0:low;50:medium;100:high              |
 | 329      | RF speed setting                             | uint16   | %      | 1     | 0:low;50:medium;100:high              |
 | 330      | 3-way switch                                 | uint16   | %      | 1     | 0:low;50:medium;100:high              |
-| 336      | Runtime in days                              | uint16   | days   | 1     |                                       |
+| 331      | Bathroom switch                              | uint16   | -      | 1     | 0:off;100:on                          |
 | 337      | Fireplace mode On/Off                        | uint16   | -      | 1     |                                       |
 | 338      | Pre-Heater On/Off                            | uint16   | -      | 1     |                                       |
 
@@ -103,4 +103,4 @@ All settings can be reconfigured in the Comfoair device page
 
 # Roadmap
 - Add automation for sending filter replacement notifications.
-- Add automation on connection loss.
+- Add automation for sending notification on connection loss.

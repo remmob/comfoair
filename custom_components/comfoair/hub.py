@@ -11,7 +11,15 @@ from pymodbus.client import ModbusSerialClient, ModbusTcpClient
 from pymodbus.exceptions import ConnectionException, ModbusIOException
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .const import BOOLEAN_REGISTERS, MODE_SERIAL, ON_OFF_STATUS, READ_RANGES, SENSOR_TYPES
+from .const import (
+    BATHROOM_SWITCH_REGISTER,
+    BATHROOM_SWITCH_STATUS,
+    BOOLEAN_REGISTERS,
+    MODE_SERIAL,
+    ON_OFF_STATUS,
+    READ_RANGES,
+    SENSOR_TYPES,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -221,6 +229,10 @@ class ComfoAirHub(DataUpdateCoordinator[dict]):
                 continue
 
             raw_value = decoded[register_map[register_int]]
+
+            if register == BATHROOM_SWITCH_REGISTER:
+                data[register] = BATHROOM_SWITCH_STATUS.get(raw_value, raw_value)
+                continue
 
             if register in BOOLEAN_REGISTERS:
                 data[register] = ON_OFF_STATUS.get(raw_value, raw_value)
