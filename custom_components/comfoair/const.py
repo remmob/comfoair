@@ -164,7 +164,7 @@ SENSOR_TYPES: dict[str, ComfoAirModbusSensorEntityDescription] = {
     ),
     "306": ComfoAirModbusSensorEntityDescription(
         key="306",
-        name="supply air humidity",
+        name="intake air humidity",
         icon="mdi:water-percent",
         native_unit_of_measurement=PERCENTAGE,
         device_class=SensorDeviceClass.HUMIDITY,
@@ -176,7 +176,7 @@ SENSOR_TYPES: dict[str, ComfoAirModbusSensorEntityDescription] = {
     ),
     "307": ComfoAirModbusSensorEntityDescription(
         key="307",
-        name="exhaust air humidity",
+        name="supply air humidity",
         icon="mdi:water-percent",
         native_unit_of_measurement=PERCENTAGE,
         device_class=SensorDeviceClass.HUMIDITY,
@@ -200,7 +200,7 @@ SENSOR_TYPES: dict[str, ComfoAirModbusSensorEntityDescription] = {
     ),
     "309": ComfoAirModbusSensorEntityDescription(
         key="309",
-        name="intake air humidity",
+        name="exhaust air humidity",
         icon="mdi:water-percent",
         native_unit_of_measurement=PERCENTAGE,
         device_class=SensorDeviceClass.HUMIDITY,
