@@ -104,3 +104,6 @@ All settings can be reconfigured in the Comfoair device page
 # Roadmap
 - Add automation for sending filter replacement notifications.
 - Add automation for sending notification on connection loss.
+
+---
+©2026 Bommer Software | Author: Mischa Bommer
