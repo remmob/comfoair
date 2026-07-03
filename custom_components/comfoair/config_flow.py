@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import ipaddress
+import logging
 import re
 
 import serial.tools.list_ports
@@ -15,27 +16,52 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
 
+_LOGGER = logging.getLogger(__name__)
+
 from .const import (
     ALLOWED_BAUDRATES,
     ALLOWED_BYTESIZES,
+    ALLOWED_DEVICE_IDS,
     ALLOWED_PARITIES,
     ALLOWED_STOPBITS,
+    CONF_ALARM_DELAY,
+    CONF_ALARM_NOTIFICATION_TITLE,
     CONF_BAUDRATE,
     CONF_BYTESIZE,
+    CONF_CONNECTION_ERROR_DELAY,
+    CONF_CONNECTION_ERROR_NOTIFICATION_TITLE,
     CONF_CONTROL_TYPE,
     CONF_DEVICE,
     CONF_DEVICE_ID,
+    CONF_DEWPOINT_DELTA,
     CONF_MODE,
+    CONF_NOTIFY_ALARMS_MOBILE,
+    CONF_NOTIFY_ALARMS_PERSISTENT,
+    CONF_NOTIFY_ALARMS_SERVICES,
+    CONF_NOTIFY_CONNECTION_ERRORS_MOBILE,
+    CONF_NOTIFY_CONNECTION_ERRORS_PERSISTENT,
+    CONF_NOTIFY_CONNECTION_ERRORS_SERVICES,
     CONF_PARITY,
     CONF_STOPBITS,
     CONTROL_TYPE_0_10V,
     CONTROL_TYPE_MANUAL,
     CONTROL_TYPE_RF,
+    DEFAULT_ALARM_DELAY,
+    DEFAULT_ALARM_NOTIFICATION_TITLE,
     DEFAULT_BAUDRATE,
     DEFAULT_CONTROL_TYPE,
     DEFAULT_BYTESIZE,
+    DEFAULT_CONNECTION_ERROR_DELAY,
+    DEFAULT_CONNECTION_ERROR_NOTIFICATION_TITLE,
+    DEFAULT_DEWPOINT_DELTA,
     DEFAULT_DEVICE_ID,
     DEFAULT_NAME,
+    DEFAULT_NOTIFY_ALARMS_MOBILE,
+    DEFAULT_NOTIFY_ALARMS_PERSISTENT,
+    DEFAULT_NOTIFY_ALARMS_SERVICES,
+    DEFAULT_NOTIFY_CONNECTION_ERRORS_MOBILE,
+    DEFAULT_NOTIFY_CONNECTION_ERRORS_PERSISTENT,
+    DEFAULT_NOTIFY_CONNECTION_ERRORS_SERVICES,
     DEFAULT_PARITY,
     DEFAULT_PORT,
     DEFAULT_SCAN_INTERVAL,
@@ -64,8 +90,155 @@ def _connection_unique_id(data: dict) -> str:
     return f"{MODE_TCP}:{data[CONF_HOST]}:{data[CONF_PORT]}:{data.get(CONF_DEVICE_ID, DEFAULT_DEVICE_ID)}"
 
 
+def _get_notify_service_options(hass: HomeAssistant) -> list[str]:
+    services = hass.services.async_services().get("notify", {})
+    return sorted(name for name in services if name.startswith("mobile_app_"))
+
+
+def _services_default(value) -> list[str]:
+    if isinstance(value, list):
+        return [str(v).strip() for v in value if str(v).strip()]
+    if isinstance(value, str):
+        return [s.strip() for s in value.split(",") if s.strip()]
+    return []
+
+
+def _normalize_services(value) -> str:
+    if isinstance(value, list):
+        return ", ".join(str(v).strip() for v in value if str(v).strip())
+    return str(value).strip() if value else ""
+
+
+def _notify_services_selector(hass: HomeAssistant) -> selector.SelectSelector:
+    return selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=_get_notify_service_options(hass),
+            multiple=True,
+            custom_value=True,
+            mode=selector.SelectSelectorMode.DROPDOWN,
+        )
+    )
+
+
+def _notification_schema_fields(hass: HomeAssistant, current: dict) -> dict:
+    """Shared alarm/connection-error notification fields for the options flow."""
+    return {
+        # === ALARM NOTIFICATIONS ===
+        vol.Optional(
+            CONF_NOTIFY_ALARMS_MOBILE,
+            default=current.get(CONF_NOTIFY_ALARMS_MOBILE, DEFAULT_NOTIFY_ALARMS_MOBILE),
+        ): bool,
+        vol.Optional(
+            CONF_NOTIFY_ALARMS_PERSISTENT,
+            default=current.get(CONF_NOTIFY_ALARMS_PERSISTENT, DEFAULT_NOTIFY_ALARMS_PERSISTENT),
+        ): bool,
+        vol.Optional(
+            CONF_NOTIFY_ALARMS_SERVICES,
+            default=_services_default(current.get(CONF_NOTIFY_ALARMS_SERVICES, DEFAULT_NOTIFY_ALARMS_SERVICES)),
+        ): _notify_services_selector(hass),
+        vol.Optional(
+            CONF_ALARM_NOTIFICATION_TITLE,
+            default=current.get(CONF_ALARM_NOTIFICATION_TITLE, DEFAULT_ALARM_NOTIFICATION_TITLE),
+        ): str,
+        vol.Optional(
+            CONF_ALARM_DELAY,
+            default=current.get(CONF_ALARM_DELAY, DEFAULT_ALARM_DELAY),
+        ): vol.All(vol.Coerce(int), vol.Range(min=0, max=3600)),
+        # === CONNECTION ERROR NOTIFICATIONS ===
+        vol.Optional(
+            CONF_NOTIFY_CONNECTION_ERRORS_MOBILE,
+            default=current.get(CONF_NOTIFY_CONNECTION_ERRORS_MOBILE, DEFAULT_NOTIFY_CONNECTION_ERRORS_MOBILE),
+        ): bool,
+        vol.Optional(
+            CONF_NOTIFY_CONNECTION_ERRORS_PERSISTENT,
+            default=current.get(
+                CONF_NOTIFY_CONNECTION_ERRORS_PERSISTENT, DEFAULT_NOTIFY_CONNECTION_ERRORS_PERSISTENT
+            ),
+        ): bool,
+        vol.Optional(
+            CONF_NOTIFY_CONNECTION_ERRORS_SERVICES,
+            default=_services_default(
+                current.get(CONF_NOTIFY_CONNECTION_ERRORS_SERVICES, DEFAULT_NOTIFY_CONNECTION_ERRORS_SERVICES)
+            ),
+        ): _notify_services_selector(hass),
+        vol.Optional(
+            CONF_CONNECTION_ERROR_NOTIFICATION_TITLE,
+            default=current.get(
+                CONF_CONNECTION_ERROR_NOTIFICATION_TITLE, DEFAULT_CONNECTION_ERROR_NOTIFICATION_TITLE
+            ),
+        ): str,
+        vol.Optional(
+            CONF_CONNECTION_ERROR_DELAY,
+            default=current.get(CONF_CONNECTION_ERROR_DELAY, DEFAULT_CONNECTION_ERROR_DELAY),
+        ): vol.All(vol.Coerce(int), vol.Range(min=60, max=3600)),
+    }
+
+
+def _options_selector(options: list) -> selector.SelectSelector:
+    return selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=[selector.SelectOptionDict(value=str(opt), label=str(opt)) for opt in options],
+            mode=selector.SelectSelectorMode.DROPDOWN,
+        )
+    )
+
+
 def _device_id_selector(default_value: int):
-    return vol.In([DEFAULT_DEVICE_ID])
+    return vol.All(_options_selector(ALLOWED_DEVICE_IDS), vol.Coerce(int))
+
+
+def _baudrate_selector():
+    return vol.All(_options_selector(ALLOWED_BAUDRATES), vol.Coerce(int))
+
+
+def _bytesize_selector():
+    return vol.All(_options_selector(ALLOWED_BYTESIZES), vol.Coerce(int))
+
+
+def _stopbits_selector():
+    return vol.All(_options_selector(ALLOWED_STOPBITS), vol.Coerce(int))
+
+
+def _tcp_schema_fields(current: dict) -> dict:
+    """Shared TCP connection fields for the setup, reconfigure and options flows."""
+    return {
+        vol.Required(CONF_HOST, default=current.get(CONF_HOST, "")): str,
+        vol.Required(
+            CONF_PORT,
+            default=current.get(CONF_PORT, DEFAULT_PORT),
+        ): vol.All(vol.Coerce(int), vol.Range(min=1, max=65535)),
+        vol.Optional(
+            CONF_SCAN_INTERVAL,
+            default=current.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+        ): vol.All(vol.Coerce(int), vol.Range(min=1, max=3600)),
+    }
+
+
+def _serial_schema_fields(current: dict, serial_ports: list[str], default_device: str) -> dict:
+    """Shared serial connection fields for the setup, reconfigure and options flows."""
+    return {
+        vol.Required(CONF_DEVICE, default=default_device): vol.In(serial_ports) if serial_ports else str,
+        vol.Required(
+            CONF_BAUDRATE,
+            default=str(current.get(CONF_BAUDRATE, DEFAULT_BAUDRATE)),
+        ): _baudrate_selector(),
+        vol.Required(
+            CONF_BYTESIZE,
+            default=str(current.get(CONF_BYTESIZE, DEFAULT_BYTESIZE)),
+        ): _bytesize_selector(),
+        vol.Required(
+            CONF_PARITY,
+            default=current.get(CONF_PARITY, DEFAULT_PARITY),
+        ): vol.In(ALLOWED_PARITIES),
+        vol.Required(
+            CONF_STOPBITS,
+            default=str(current.get(CONF_STOPBITS, DEFAULT_STOPBITS)),
+        ): _stopbits_selector(),
+        vol.Optional(
+            CONF_SCAN_INTERVAL,
+            default=current.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+        ): vol.All(vol.Coerce(int), vol.Range(min=1, max=3600)),
+    }
 
 
 def _control_type_selector(default_value: str):
@@ -120,7 +293,7 @@ class ComfoAirConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(config_entry):
-        return ComfoAirOptionsFlow(config_entry)
+        return ComfoAirOptionsFlow()
 
     async def async_step_user(self, user_input=None) -> FlowResult:
         if user_input is not None:
@@ -134,7 +307,9 @@ class ComfoAirConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_NAME, default=DEFAULT_NAME): str,
-                    vol.Required(CONF_DEVICE_ID, default=DEFAULT_DEVICE_ID): _device_id_selector(DEFAULT_DEVICE_ID),
+                    vol.Required(CONF_DEVICE_ID, default=str(DEFAULT_DEVICE_ID)): _device_id_selector(
+                        DEFAULT_DEVICE_ID
+                    ),
                     vol.Required(CONF_MODE, default=MODE_TCP): vol.In(MODES),
                 }
             ),
@@ -164,22 +339,7 @@ class ComfoAirConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="tcp",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(
-                        CONF_HOST,
-                        default=self._data.get(CONF_HOST, ""),
-                    ): str,
-                    vol.Required(
-                        CONF_PORT,
-                        default=self._data.get(CONF_PORT, DEFAULT_PORT),
-                    ): vol.All(vol.Coerce(int), vol.Range(min=1, max=65535)),
-                    vol.Optional(
-                        CONF_SCAN_INTERVAL,
-                        default=self._data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
-                    ): vol.All(vol.Coerce(int), vol.Range(min=1, max=3600)),
-                }
-            ),
+            data_schema=vol.Schema(_tcp_schema_fields(self._data)),
             errors=errors,
         )
 
@@ -205,34 +365,7 @@ class ComfoAirConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="serial",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(
-                        CONF_DEVICE,
-                        default=default_device,
-                    ): vol.In(serial_ports) if serial_ports else str,
-                    vol.Required(
-                        CONF_BAUDRATE,
-                        default=self._data.get(CONF_BAUDRATE, DEFAULT_BAUDRATE),
-                    ): vol.In(ALLOWED_BAUDRATES),
-                    vol.Required(
-                        CONF_BYTESIZE,
-                        default=self._data.get(CONF_BYTESIZE, DEFAULT_BYTESIZE),
-                    ): vol.In(ALLOWED_BYTESIZES),
-                    vol.Required(
-                        CONF_PARITY,
-                        default=self._data.get(CONF_PARITY, DEFAULT_PARITY),
-                    ): vol.In(ALLOWED_PARITIES),
-                    vol.Required(
-                        CONF_STOPBITS,
-                        default=self._data.get(CONF_STOPBITS, DEFAULT_STOPBITS),
-                    ): vol.In(ALLOWED_STOPBITS),
-                    vol.Optional(
-                        CONF_SCAN_INTERVAL,
-                        default=self._data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
-                    ): vol.All(vol.Coerce(int), vol.Range(min=1, max=3600)),
-                }
-            ),
+            data_schema=vol.Schema(_serial_schema_fields(self._data, serial_ports, default_device)),
             errors=errors,
         )
 
@@ -294,7 +427,7 @@ class ComfoAirConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ): str,
                     vol.Required(
                         CONF_DEVICE_ID,
-                        default=DEFAULT_DEVICE_ID,
+                        default=str(DEFAULT_DEVICE_ID),
                     ): _device_id_selector(self._reconfigure_data.get(CONF_DEVICE_ID, DEFAULT_DEVICE_ID)),
                     vol.Required(
                         CONF_MODE,
@@ -326,22 +459,7 @@ class ComfoAirConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="reconfigure_tcp",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(
-                        CONF_HOST,
-                        default=entry.data.get(CONF_HOST, ""),
-                    ): str,
-                    vol.Required(
-                        CONF_PORT,
-                        default=entry.data.get(CONF_PORT, DEFAULT_PORT),
-                    ): vol.All(vol.Coerce(int), vol.Range(min=1, max=65535)),
-                    vol.Optional(
-                        CONF_SCAN_INTERVAL,
-                        default=entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
-                    ): vol.All(vol.Coerce(int), vol.Range(min=1, max=3600)),
-                }
-            ),
+            data_schema=vol.Schema(_tcp_schema_fields(entry.data)),
             errors=errors,
         )
 
@@ -363,36 +481,10 @@ class ComfoAirConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self._reconfigure_data = merged
                 return await self.async_step_reconfigure_control_type()
 
+        default_device = entry.data.get(CONF_DEVICE, serial_ports[0] if serial_ports else "")
         return self.async_show_form(
             step_id="reconfigure_serial",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(
-                        CONF_DEVICE,
-                        default=entry.data.get(CONF_DEVICE, serial_ports[0] if serial_ports else ""),
-                    ): vol.In(serial_ports) if serial_ports else str,
-                    vol.Required(
-                        CONF_BAUDRATE,
-                        default=entry.data.get(CONF_BAUDRATE, DEFAULT_BAUDRATE),
-                    ): vol.In(ALLOWED_BAUDRATES),
-                    vol.Required(
-                        CONF_BYTESIZE,
-                        default=entry.data.get(CONF_BYTESIZE, DEFAULT_BYTESIZE),
-                    ): vol.In(ALLOWED_BYTESIZES),
-                    vol.Required(
-                        CONF_PARITY,
-                        default=entry.data.get(CONF_PARITY, DEFAULT_PARITY),
-                    ): vol.In(ALLOWED_PARITIES),
-                    vol.Required(
-                        CONF_STOPBITS,
-                        default=entry.data.get(CONF_STOPBITS, DEFAULT_STOPBITS),
-                    ): vol.In(ALLOWED_STOPBITS),
-                    vol.Optional(
-                        CONF_SCAN_INTERVAL,
-                        default=entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
-                    ): vol.All(vol.Coerce(int), vol.Range(min=1, max=3600)),
-                }
-            ),
+            data_schema=vol.Schema(_serial_schema_fields(entry.data, serial_ports, default_device)),
             errors=errors,
         )
 
@@ -448,74 +540,50 @@ class ComfoAirConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class ComfoAirOptionsFlow(config_entries.OptionsFlow):
     """Handle options flow for ComfoAir."""
 
-    def __init__(self, config_entry) -> None:
-        self.config_entry = config_entry
-
     async def async_step_init(self, user_input=None) -> FlowResult:
         if user_input is not None:
+            _LOGGER.debug("Received user_input: %s", user_input)
             data = _normalize_device_id({**self.config_entry.data, **user_input})
+            data[CONF_NOTIFY_ALARMS_SERVICES] = _normalize_services(user_input.get(CONF_NOTIFY_ALARMS_SERVICES))
+            data[CONF_NOTIFY_CONNECTION_ERRORS_SERVICES] = _normalize_services(
+                user_input.get(CONF_NOTIFY_CONNECTION_ERRORS_SERVICES)
+            )
             self.hass.config_entries.async_update_entry(self.config_entry, data=data)
             await self.hass.config_entries.async_reload(self.config_entry.entry_id)
             return self.async_create_entry(title="", data={})
 
         mode = self.config_entry.data.get(CONF_MODE, MODE_TCP)
 
+        device_id_field = {
+            vol.Required(
+                CONF_DEVICE_ID,
+                default=str(DEFAULT_DEVICE_ID),
+            ): _device_id_selector(self.config_entry.data.get(CONF_DEVICE_ID, DEFAULT_DEVICE_ID))
+        }
+        common_fields = {
+            vol.Optional(
+                CONF_DEWPOINT_DELTA,
+                default=self.config_entry.data.get(CONF_DEWPOINT_DELTA, DEFAULT_DEWPOINT_DELTA),
+            ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=5.0)),
+            **_notification_schema_fields(self.hass, self.config_entry.data),
+        }
+
         if mode == MODE_SERIAL:
             serial_ports = await _get_serial_ports()
+            default_device = self.config_entry.data.get(CONF_DEVICE, serial_ports[0] if serial_ports else "")
             schema = vol.Schema(
                 {
-                    vol.Required(
-                        CONF_DEVICE_ID,
-                        default=DEFAULT_DEVICE_ID,
-                    ): _device_id_selector(self.config_entry.data.get(CONF_DEVICE_ID, DEFAULT_DEVICE_ID)),
-                    vol.Required(
-                        CONF_DEVICE,
-                        default=self.config_entry.data.get(
-                            CONF_DEVICE,
-                            serial_ports[0] if serial_ports else "",
-                        ),
-                    ): vol.In(serial_ports) if serial_ports else str,
-                    vol.Required(
-                        CONF_BAUDRATE,
-                        default=self.config_entry.data.get(CONF_BAUDRATE, DEFAULT_BAUDRATE),
-                    ): vol.In(ALLOWED_BAUDRATES),
-                    vol.Required(
-                        CONF_BYTESIZE,
-                        default=self.config_entry.data.get(CONF_BYTESIZE, DEFAULT_BYTESIZE),
-                    ): vol.In(ALLOWED_BYTESIZES),
-                    vol.Required(
-                        CONF_PARITY,
-                        default=self.config_entry.data.get(CONF_PARITY, DEFAULT_PARITY),
-                    ): vol.In(ALLOWED_PARITIES),
-                    vol.Required(
-                        CONF_STOPBITS,
-                        default=self.config_entry.data.get(CONF_STOPBITS, DEFAULT_STOPBITS),
-                    ): vol.In(ALLOWED_STOPBITS),
-                    vol.Optional(
-                        CONF_SCAN_INTERVAL,
-                        default=self.config_entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
-                    ): vol.All(vol.Coerce(int), vol.Range(min=1, max=3600)),
+                    **device_id_field,
+                    **_serial_schema_fields(self.config_entry.data, serial_ports, default_device),
+                    **common_fields,
                 }
             )
         else:
             schema = vol.Schema(
                 {
-                    vol.Required(
-                        CONF_DEVICE_ID,
-                        default=DEFAULT_DEVICE_ID,
-                    ): _device_id_selector(self.config_entry.data.get(CONF_DEVICE_ID, DEFAULT_DEVICE_ID)),
-                    vol.Required(
-                        CONF_HOST,
-                        default=self.config_entry.data.get(CONF_HOST, ""),
-                    ): str,
-                    vol.Required(
-                        CONF_PORT,
-                        default=self.config_entry.data.get(CONF_PORT, DEFAULT_PORT),
-                    ): vol.All(vol.Coerce(int), vol.Range(min=1, max=65535)),
-                    vol.Optional(
-                        CONF_SCAN_INTERVAL,
-                        default=self.config_entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
-                    ): vol.All(vol.Coerce(int), vol.Range(min=1, max=3600)),
+                    **device_id_field,
+                    **_tcp_schema_fields(self.config_entry.data),
+                    **common_fields,
                 }
             )
 

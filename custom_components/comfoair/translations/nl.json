@@ -1,0 +1,130 @@
+{
+    "entity": {
+        "binary_sensor": {
+            "supply_condensation_alarm": {
+                "state": {
+                    "off": "No alarm",
+                    "on": "Alarm"
+                }
+            }
+        }
+    },
+    "config": {
+        "step": {
+            "user": {
+                "title": "ComfoAir WTW-unit toevoegen",
+                "data": {
+                    "name": "Naam voor de integratie",
+                    "device_id": "Modbus adres",
+                    "mode": "Verbindingstype"
+                },
+                "data_description": {
+                    "name": "De naam die gebruikt wordt als prefix voor alle entiteiten",
+                    "device_id": "Modbus slave-adres van de WTW-unit (momenteel alleen adres 1 ondersteund)",
+                    "mode": "Kies of de WTW-unit via TCP/IP (Modbus TCP) of een seriële poort (Modbus RTU) wordt aangesproken"
+                }
+            },
+            "tcp": {
+                "title": "TCP/IP-verbinding",
+                "data": {
+                    "host": "IP-adres van uw modbus RTU naar TCP/IP gateway",
+                    "port": "TCP-poort (standaard 502)",
+                    "scan_interval": "Polling interval in seconden"
+                },
+                "data_description": {
+                    "host": "Het IP-adres van uw modbus RTU naar TCP/IP gateway",
+                    "port": "De TCP-poort waarop de Modbus interface beschikbaar is",
+                    "scan_interval": "Hoe vaak de WTW-unit wordt uitgelezen (in seconden)"
+                }
+            },
+            "serial": {
+                "title": "Seriële verbinding",
+                "data": {
+                    "device": "Seriële poort",
+                    "baudrate": "Baudrate",
+                    "bytesize": "Bytesize",
+                    "parity": "Pariteit",
+                    "stopbits": "Stopbits",
+                    "scan_interval": "Polling interval in seconden"
+                },
+                "data_description": {
+                    "device": "Het seriële poort-pad waarop de WTW-unit is aangesloten",
+                    "baudrate": "Baudrate voor de seriële verbinding (momenteel alleen 19200 ondersteund)",
+                    "bytesize": "Aantal databits per byte (momenteel alleen 8 ondersteund)",
+                    "parity": "Pariteitscontrole voor de seriële verbinding (momenteel alleen 'E' (even) ondersteund)",
+                    "stopbits": "Aantal stopbits (momenteel alleen 1 ondersteund)",
+                    "scan_interval": "Hoe vaak de WTW-unit wordt uitgelezen (in seconden)"
+                }
+            },
+            "control_type": {
+                "title": "Besturingstype bypass/voorverwarming",
+                "data": {
+                    "control_type": "Besturingstype"
+                },
+                "data_description": {
+                    "control_type": "Hoe de bypass/voorverwarming wordt aangestuurd (analoog 0-10V, RF, of 3-standenschakelaar)"
+                }
+            }
+        },
+        "error": {
+            "invalid_host": "Ongeldig IP-adres of hostnaam",
+            "invalid_port": "Ongeldige poort",
+            "invalid_serial_port": "Ongeldige seriële poort",
+            "already_configured": "Apparaat is al geconfigureerd"
+        },
+        "abort": {
+            "already_configured": "Apparaat is al geconfigureerd"
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Configureer ComfoAir instellingen",
+                "data": {
+                    "device_id": "Modbus adres",
+                    "device": "Seriële poort",
+                    "baudrate": "Baudrate",
+                    "bytesize": "Bytesize",
+                    "parity": "Pariteit",
+                    "stopbits": "Stopbits",
+                    "host": "IP-adres van uw modbus RTU naar TCP/IP gateway",
+                    "port": "TCP-poort (standaard 502)",
+                    "scan_interval": "Polling interval in seconden",
+                    "dewpoint_delta": "Dauwpunt marge (°C)",
+                    "notify_alarms_mobile": "Stuur notificaties voor alarmen",
+                    "notify_alarms_persistent": "Toon persistent notifications voor alarmen",
+                    "notify_alarms_services": "Notify services voor alarm meldingen",
+                    "alarm_notification_title": "Titel voor alarm meldingen",
+                    "alarm_delay": "Wachttijd alarmen (seconden)",
+                    "notify_connection_errors_mobile": "Stuur notificaties voor verbindingsfouten",
+                    "notify_connection_errors_persistent": "Toon persistent notifications voor verbindingsfouten",
+                    "notify_connection_errors_services": "Notify services voor verbindingsfouten",
+                    "connection_error_notification_title": "Titel voor verbindingsfouten",
+                    "connection_error_delay": "Wachttijd verbindingsfouten (seconden)"
+                },
+                "data_description": {
+                    "device_id": "Modbus slave-adres van de WTW-unit (momenteel alleen adres 1 ondersteund)",
+                    "device": "Het seriële poort-pad waarop de WTW-unit is aangesloten",
+                    "baudrate": "Baudrate voor de seriële verbinding (momenteel alleen 19200 ondersteund)",
+                    "bytesize": "Aantal databits per byte (momenteel alleen 8 ondersteund)",
+                    "parity": "Pariteitscontrole voor de seriële verbinding (momenteel alleen 'E' (even) ondersteund)",
+                    "stopbits": "Aantal stopbits (momenteel alleen 1 ondersteund)",
+                    "host": "Het IP-adres van uw modbus RTU naar TCP/IP gateway",
+                    "port": "De TCP-poort waarop de Modbus interface beschikbaar is",
+                    "scan_interval": "Hoe vaak de WTW-unit wordt uitgelezen (in seconden)",
+                    "dewpoint_delta": "Marge tussen het dauwpunt van de toevoerlucht en de extractietemperatuur waarbij het condensatie-alarm afgaat",
+                    "notify_alarms_mobile": "Stuur meldingen naar de onderstaande notify services",
+                    "notify_alarms_persistent": "Toon meldingen in de Home Assistant interface (persistent notifications)",
+                    "notify_alarms_services": "Voer notify service namen in gescheiden door komma's (bijv: mobile_app_iphone,mobile_app_tablet)",
+                    "alarm_notification_title": "De titel die wordt gebruikt voor alarm meldingen. Standaard: 'ComfoAir in storing!'",
+                    "alarm_delay": "Tijd (in seconden) wachten voordat een alarm melding wordt verstuurd. Voor filter warning en frost protection warning wordt de mobiele melding alleen tussen 07:00-23:00 verstuurd; buiten dat venster wordt hij vastgehouden tot 07:00",
+                    "notify_connection_errors_mobile": "Stuur meldingen naar de onderstaande notify services",
+                    "notify_connection_errors_persistent": "Toon meldingen in de Home Assistant interface (persistent notifications)",
+                    "notify_connection_errors_services": "Voer notify service namen in gescheiden door komma's (bijv: mobile_app_iphone,mobile_app_tablet)",
+                    "connection_error_notification_title": "De titel die wordt gebruikt voor verbindingsfout meldingen. Standaard: 'ComfoAir verbindingsfout!'",
+                    "connection_error_delay": "Tijd (in seconden) wachten voordat een verbindingsfout melding wordt verstuurd"
+                }
+            }
+        }
+    }
+}

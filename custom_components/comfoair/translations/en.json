@@ -1,0 +1,130 @@
+{
+    "entity": {
+        "binary_sensor": {
+            "supply_condensation_alarm": {
+                "state": {
+                    "off": "No alarm",
+                    "on": "Alarm"
+                }
+            }
+        }
+    },
+    "config": {
+        "step": {
+            "user": {
+                "title": "Add ComfoAir ventilation unit",
+                "data": {
+                    "name": "Name for the integration",
+                    "device_id": "Modbus address",
+                    "mode": "Connection type"
+                },
+                "data_description": {
+                    "name": "The name used as prefix for all entities",
+                    "device_id": "Modbus slave address of the ventilation unit (currently only address 1 is supported)",
+                    "mode": "Choose whether the ventilation unit is reached over TCP/IP (Modbus TCP) or a serial port (Modbus RTU)"
+                }
+            },
+            "tcp": {
+                "title": "TCP/IP connection",
+                "data": {
+                    "host": "IP address of your modbus RTU to TCP/IP gateway",
+                    "port": "TCP port (default 502)",
+                    "scan_interval": "Polling interval in seconds"
+                },
+                "data_description": {
+                    "host": "The IP address of your modbus RTU to TCP/IP gateway",
+                    "port": "The TCP port where the Modbus interface is available",
+                    "scan_interval": "How often the ventilation unit is polled (in seconds)"
+                }
+            },
+            "serial": {
+                "title": "Serial connection",
+                "data": {
+                    "device": "Serial port",
+                    "baudrate": "Baud rate",
+                    "bytesize": "Byte size",
+                    "parity": "Parity",
+                    "stopbits": "Stop bits",
+                    "scan_interval": "Polling interval in seconds"
+                },
+                "data_description": {
+                    "device": "The serial port path the ventilation unit is connected to",
+                    "baudrate": "Baud rate for the serial connection (currently only 19200 is supported)",
+                    "bytesize": "Number of data bits per byte (currently only 8 is supported)",
+                    "parity": "Parity for the serial connection (currently only 'E' (even) is supported)",
+                    "stopbits": "Number of stop bits (currently only 1 is supported)",
+                    "scan_interval": "How often the ventilation unit is polled (in seconds)"
+                }
+            },
+            "control_type": {
+                "title": "Bypass/preheater control type",
+                "data": {
+                    "control_type": "Control type"
+                },
+                "data_description": {
+                    "control_type": "How the bypass/preheater is controlled (analog 0-10V, RF, or 3-way switch)"
+                }
+            }
+        },
+        "error": {
+            "invalid_host": "Invalid IP address or hostname",
+            "invalid_port": "Invalid port",
+            "invalid_serial_port": "Invalid serial port",
+            "already_configured": "Device is already configured"
+        },
+        "abort": {
+            "already_configured": "Device is already configured"
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Configure ComfoAir settings",
+                "data": {
+                    "device_id": "Modbus address",
+                    "device": "Serial port",
+                    "baudrate": "Baud rate",
+                    "bytesize": "Byte size",
+                    "parity": "Parity",
+                    "stopbits": "Stop bits",
+                    "host": "IP address of your modbus RTU to TCP/IP gateway",
+                    "port": "TCP port (default 502)",
+                    "scan_interval": "Polling interval in seconds",
+                    "dewpoint_delta": "Dew point margin (°C)",
+                    "notify_alarms_mobile": "Send notifications for alarms",
+                    "notify_alarms_persistent": "Show persistent notifications for alarms",
+                    "notify_alarms_services": "Notify services for alarm notifications",
+                    "alarm_notification_title": "Title for alarm notifications",
+                    "alarm_delay": "Alarm delay (seconds)",
+                    "notify_connection_errors_mobile": "Send notifications for connection errors",
+                    "notify_connection_errors_persistent": "Show persistent notifications for connection errors",
+                    "notify_connection_errors_services": "Notify services for connection errors",
+                    "connection_error_notification_title": "Title for connection error notifications",
+                    "connection_error_delay": "Connection error delay (seconds)"
+                },
+                "data_description": {
+                    "device_id": "Modbus slave address of the ventilation unit (currently only address 1 is supported)",
+                    "device": "The serial port path the ventilation unit is connected to",
+                    "baudrate": "Baud rate for the serial connection (currently only 19200 is supported)",
+                    "bytesize": "Number of data bits per byte (currently only 8 is supported)",
+                    "parity": "Parity for the serial connection (currently only 'E' (even) is supported)",
+                    "stopbits": "Number of stop bits (currently only 1 is supported)",
+                    "host": "The IP address of your modbus RTU to TCP/IP gateway",
+                    "port": "The TCP port where the Modbus interface is available",
+                    "scan_interval": "How often the ventilation unit is polled (in seconds)",
+                    "dewpoint_delta": "Margin between the supply air dew point and the extract temperature that triggers the condensation alarm",
+                    "notify_alarms_mobile": "Send notifications to the notify services below",
+                    "notify_alarms_persistent": "Show notifications in the Home Assistant interface (persistent notifications)",
+                    "notify_alarms_services": "Enter notify service names separated by commas (e.g: mobile_app_iphone,mobile_app_tablet)",
+                    "alarm_notification_title": "The title used for alarm notifications. Default: 'ComfoAir in alarm!'",
+                    "alarm_delay": "Time (in seconds) to wait before sending an alarm notification. For filter warning and frost protection warning the mobile notification is only sent between 07:00-23:00; outside that window it is held until 07:00",
+                    "notify_connection_errors_mobile": "Send notifications to the notify services below",
+                    "notify_connection_errors_persistent": "Show notifications in the Home Assistant interface (persistent notifications)",
+                    "notify_connection_errors_services": "Enter notify service names separated by commas (e.g: mobile_app_iphone,mobile_app_tablet)",
+                    "connection_error_notification_title": "The title used for connection error notifications. Default: 'ComfoAir connection error!'",
+                    "connection_error_delay": "Time (in seconds) to wait before sending a connection error notification"
+                }
+            }
+        }
+    }
+}
