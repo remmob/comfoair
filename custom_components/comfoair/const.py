@@ -56,19 +56,70 @@ ATTR_COPYRIGHT = "Mischa Bommer"
 CONF_COMFOAIR_HUB = "comfoair_hub"
 CONF_DEWPOINT_DELTA = "dewpoint_delta"
 
+# Optional temperature entity (e.g. the underfloor heating flow temperature) that
+# is compared with the condensation limit. Empty means no condensation alarm.
+CONF_CONDENSATION_SOURCE = "condensation_source_entity"
+DEFAULT_CONDENSATION_SOURCE = ""
+
+# Maximum change in °C per hour of the condensation limit sensor. Showering pushes
+# the extract humidity up sharply and it takes hours to come back down; limiting
+# the rate of change flattens that into a small bump. 0 disables the limit. The
+# alarm always uses the unlimited value.
+CONF_CONDENSATION_MAX_CHANGE = "condensation_max_change"
+DEFAULT_CONDENSATION_MAX_CHANGE = 0.0
+
+# Notification configuration - shared by every category
+CONF_NOTIFY_PERSISTENT = "notify_persistent"
+
 # Notification configuration - Alarms
 CONF_NOTIFY_ALARMS_MOBILE = "notify_alarms_mobile"
-CONF_NOTIFY_ALARMS_PERSISTENT = "notify_alarms_persistent"
 CONF_NOTIFY_ALARMS_SERVICES = "notify_alarms_services"
 CONF_ALARM_NOTIFICATION_TITLE = "alarm_notification_title"
 CONF_ALARM_DELAY = "alarm_delay"
+CONF_ALARM_NOTIFY_RECOVERY = "alarm_notify_recovery"
+
+# Notification configuration - Warnings (filter warning / frost protection
+# warning). These used to be part of the alarm category; entries created before
+# the split fall back to their alarm counterpart.
+CONF_NOTIFY_WARNINGS_MOBILE = "notify_warnings_mobile"
+CONF_NOTIFY_WARNINGS_SERVICES = "notify_warnings_services"
+CONF_WARNING_NOTIFICATION_TITLE = "warning_notification_title"
+CONF_WARNING_DELAY = "warning_delay"
+CONF_WARNING_NOTIFY_RECOVERY = "warning_notify_recovery"
 
 # Notification configuration - Connection errors
 CONF_NOTIFY_CONNECTION_ERRORS_MOBILE = "notify_connection_errors_mobile"
-CONF_NOTIFY_CONNECTION_ERRORS_PERSISTENT = "notify_connection_errors_persistent"
 CONF_NOTIFY_CONNECTION_ERRORS_SERVICES = "notify_connection_errors_services"
 CONF_CONNECTION_ERROR_NOTIFICATION_TITLE = "connection_error_notification_title"
 CONF_CONNECTION_ERROR_DELAY = "connection_error_delay"
+CONF_CONNECTION_NOTIFY_RECOVERY = "connection_notify_recovery"
+
+# Legacy per-category persistent toggles, replaced by CONF_NOTIFY_PERSISTENT.
+# Still read so existing config entries keep their behaviour.
+CONF_NOTIFY_ALARMS_PERSISTENT = "notify_alarms_persistent"
+CONF_NOTIFY_CONNECTION_ERRORS_PERSISTENT = "notify_connection_errors_persistent"
+
+# Per-category quiet hours: hold mobile notifications during a set period and
+# deliver them once it ends. Connection, alarm and warning each have their own.
+CONF_CONNECTION_QUIET_ENABLED = "connection_quiet_hours_enabled"
+CONF_CONNECTION_QUIET_START = "connection_quiet_hours_start"
+CONF_CONNECTION_QUIET_END = "connection_quiet_hours_end"
+CONF_ALARM_QUIET_ENABLED = "alarm_quiet_hours_enabled"
+CONF_ALARM_QUIET_START = "alarm_quiet_hours_start"
+CONF_ALARM_QUIET_END = "alarm_quiet_hours_end"
+CONF_WARNING_QUIET_ENABLED = "warning_quiet_hours_enabled"
+CONF_WARNING_QUIET_START = "warning_quiet_hours_start"
+CONF_WARNING_QUIET_END = "warning_quiet_hours_end"
+
+# Collapsible option sections, one per notification category.
+SECTION_GENERAL = "general"
+SECTION_CONNECTION = "connection"
+SECTION_ALARM = "alarm"
+SECTION_WARNING = "warning"
+SECTION_KEYS = [SECTION_GENERAL, SECTION_CONNECTION, SECTION_ALARM, SECTION_WARNING]
+
+DEFAULT_NOTIFY_PERSISTENT = False
+DEFAULT_NOTIFY_RECOVERY = True
 
 DEFAULT_NOTIFY_ALARMS_MOBILE = False
 DEFAULT_NOTIFY_ALARMS_PERSISTENT = False
@@ -76,17 +127,24 @@ DEFAULT_NOTIFY_ALARMS_SERVICES = ""
 DEFAULT_ALARM_NOTIFICATION_TITLE = "ComfoAir in storing!"
 DEFAULT_ALARM_DELAY = 60
 
+DEFAULT_NOTIFY_WARNINGS_MOBILE = False
+DEFAULT_NOTIFY_WARNINGS_SERVICES = ""
+DEFAULT_WARNING_NOTIFICATION_TITLE = "ComfoAir waarschuwing"
+DEFAULT_WARNING_DELAY = 60
+
 DEFAULT_NOTIFY_CONNECTION_ERRORS_MOBILE = False
 DEFAULT_NOTIFY_CONNECTION_ERRORS_PERSISTENT = False
 DEFAULT_NOTIFY_CONNECTION_ERRORS_SERVICES = ""
 DEFAULT_CONNECTION_ERROR_NOTIFICATION_TITLE = "ComfoAir verbindingsfout!"
 DEFAULT_CONNECTION_ERROR_DELAY = 60
 
-# Warning notifications (filter warning / frost protection warning) may only be
-# sent between WARNING_QUIET_HOUR_END and WARNING_QUIET_HOUR_START; outside that
-# window they are held and sent at WARNING_QUIET_HOUR_END instead.
-WARNING_QUIET_HOUR_START = 23
-WARNING_QUIET_HOUR_END = 7
+# Quiet hours defaults (off; a sensible night window when switched on). Warnings
+# default to on with the 23:00-07:00 window that used to be hard-coded, so the
+# filter and frost protection warnings still never wake anyone up at night.
+DEFAULT_QUIET_HOURS_ENABLED = False
+DEFAULT_WARNING_QUIET_HOURS_ENABLED = True
+DEFAULT_QUIET_HOURS_START = "23:00:00"
+DEFAULT_QUIET_HOURS_END = "07:00:00"
 
 ALLOWED_DEVICE_IDS = [1]
 ALLOWED_BAUDRATES = [19200]
@@ -145,9 +203,9 @@ def alarm_data_key(reg_str: str | int, bit_pos: int) -> str:
     return f"alarm_{reg_str}_{bit_pos}"
 
 
-# Alarm bit data keys whose description contains "warning"; these are gated to
-# the 07:00-23:00 notification window.
-GATED_WARNING_KEYS: set[str] = {
+# Alarm bit data keys whose description contains "warning". These form the
+# "warning" notification category; every other bit counts as an alarm.
+WARNING_KEYS: set[str] = {
     alarm_data_key(reg_str, bit_pos)
     for reg_str, bits in ALARM_BITS.items()
     for bit_pos, description in bits
@@ -340,6 +398,16 @@ SENSOR_TYPES: dict[str, ComfoAirModbusSensorEntityDescription] = {
         name="efficiency",
         icon="mdi:percent",
         native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        scale=1.0,
+    ),
+    "condensation_limit": ComfoAirModbusSensorEntityDescription(
+        key="condensation_limit",
+        name="condensation limit",
+        icon="mdi:water-thermometer",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=1,
         scale=1.0,

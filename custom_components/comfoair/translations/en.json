@@ -91,16 +91,8 @@
                     "port": "TCP port (default 502)",
                     "scan_interval": "Polling interval in seconds",
                     "dewpoint_delta": "Dew point margin (°C)",
-                    "notify_alarms_mobile": "Send notifications for alarms",
-                    "notify_alarms_persistent": "Show persistent notifications for alarms",
-                    "notify_alarms_services": "Notify services for alarm notifications",
-                    "alarm_notification_title": "Title for alarm notifications",
-                    "alarm_delay": "Alarm delay (seconds)",
-                    "notify_connection_errors_mobile": "Send notifications for connection errors",
-                    "notify_connection_errors_persistent": "Show persistent notifications for connection errors",
-                    "notify_connection_errors_services": "Notify services for connection errors",
-                    "connection_error_notification_title": "Title for connection error notifications",
-                    "connection_error_delay": "Connection error delay (seconds)"
+                    "condensation_source_entity": "Temperature entity for the condensation alarm",
+                    "condensation_max_change": "Maximum change of the condensation limit (°C per hour)"
                 },
                 "data_description": {
                     "device_id": "Modbus slave address of the ventilation unit (currently only address 1 is supported)",
@@ -112,17 +104,81 @@
                     "host": "The IP address of your modbus RTU to TCP/IP gateway",
                     "port": "The TCP port where the Modbus interface is available",
                     "scan_interval": "How often the ventilation unit is polled (in seconds)",
-                    "dewpoint_delta": "Margin between the supply air dew point and the extract temperature that triggers the condensation alarm",
-                    "notify_alarms_mobile": "Send notifications to the notify services below",
-                    "notify_alarms_persistent": "Show notifications in the Home Assistant interface (persistent notifications)",
-                    "notify_alarms_services": "Enter notify service names separated by commas (e.g: mobile_app_iphone,mobile_app_tablet)",
-                    "alarm_notification_title": "The title used for alarm notifications. Default: 'ComfoAir in alarm!'",
-                    "alarm_delay": "Time (in seconds) to wait before sending an alarm notification. For filter warning and frost protection warning the mobile notification is only sent between 07:00-23:00; outside that window it is held until 07:00",
-                    "notify_connection_errors_mobile": "Send notifications to the notify services below",
-                    "notify_connection_errors_persistent": "Show notifications in the Home Assistant interface (persistent notifications)",
-                    "notify_connection_errors_services": "Enter notify service names separated by commas (e.g: mobile_app_iphone,mobile_app_tablet)",
-                    "connection_error_notification_title": "The title used for connection error notifications. Default: 'ComfoAir connection error!'",
-                    "connection_error_delay": "Time (in seconds) to wait before sending a connection error notification"
+                    "dewpoint_delta": "Safety margin above the indoor dew point. The 'condensation limit' sensor reports the indoor dew point plus this margin: the lowest temperature that stays clear of condensation.",
+                    "condensation_source_entity": "Optional. Pick the entity holding the flow temperature of your underfloor heating or cooling. The condensation alarm goes off as soon as that temperature drops to or below the condensation limit. Leave empty to only use the 'condensation limit' sensor in your own automations.",
+                    "condensation_max_change": "Keeps the 'condensation limit' sensor calm enough to feed to a heat pump as a setpoint. Showering raises the indoor humidity sharply for a couple of hours; this limits how fast the sensor may follow, so such a peak is flattened while slow changes still come through. 0 disables the limit. The condensation alarm always uses the unlimited value."
+                },
+                "sections": {
+                    "general": {
+                        "name": "General",
+                        "description": "Channels and options shared by every notification.",
+                        "data": {
+                            "notify_persistent": "Persistent notifications"
+                        },
+                        "data_description": {
+                            "notify_persistent": "Also show notifications as persistent notifications in the Home Assistant interface."
+                        }
+                    },
+                    "connection": {
+                        "name": "Connection errors",
+                        "description": "Notifications when the Modbus connection to the ventilation unit is lost.",
+                        "data": {
+                            "notify_connection_errors_mobile": "Notify on connection errors",
+                            "connection_notify_recovery": "Notify on recovery",
+                            "notify_connection_errors_services": "Mobile notify services",
+                            "connection_error_notification_title": "Notification subject",
+                            "connection_error_delay": "Delay before notifying (seconds)",
+                            "connection_quiet_hours_enabled": "Enable quiet hours",
+                            "connection_quiet_hours_start": "Quiet hours start",
+                            "connection_quiet_hours_end": "Quiet hours end"
+                        },
+                        "data_description": {
+                            "connection_notify_recovery": "Send a notification once the connection is restored.",
+                            "notify_connection_errors_services": "Mobile services that receive connection notifications only.",
+                            "connection_error_delay": "How long the connection must be lost before a notification is sent.",
+                            "connection_quiet_hours_enabled": "During quiet hours, mobile notifications are held and delivered once the period ends. Persistent notifications are never held."
+                        }
+                    },
+                    "alarm": {
+                        "name": "Alarms",
+                        "description": "Notifications for faults of the ventilation unit, such as a sensor, fan or preheater error.",
+                        "data": {
+                            "notify_alarms_mobile": "Notify on alarms",
+                            "alarm_notify_recovery": "Notify on recovery",
+                            "notify_alarms_services": "Mobile notify services",
+                            "alarm_notification_title": "Notification subject",
+                            "alarm_delay": "Confirmation delay (seconds)",
+                            "alarm_quiet_hours_enabled": "Enable quiet hours",
+                            "alarm_quiet_hours_start": "Quiet hours start",
+                            "alarm_quiet_hours_end": "Quiet hours end"
+                        },
+                        "data_description": {
+                            "alarm_notify_recovery": "Send a notification once the alarm has cleared.",
+                            "notify_alarms_services": "Mobile services that receive alarm notifications only.",
+                            "alarm_delay": "An alarm is re-checked after this delay before a notification is sent; this avoids notifications for short-lived alarms.",
+                            "alarm_quiet_hours_enabled": "During quiet hours, mobile alarm notifications are held and delivered once the period ends. Persistent notifications are never held."
+                        }
+                    },
+                    "warning": {
+                        "name": "Warnings",
+                        "description": "Notifications for the filter warning and the frost protection warning.",
+                        "data": {
+                            "notify_warnings_mobile": "Notify on warnings",
+                            "warning_notify_recovery": "Notify on recovery",
+                            "notify_warnings_services": "Mobile notify services",
+                            "warning_notification_title": "Notification subject",
+                            "warning_delay": "Confirmation delay (seconds)",
+                            "warning_quiet_hours_enabled": "Enable quiet hours",
+                            "warning_quiet_hours_start": "Quiet hours start",
+                            "warning_quiet_hours_end": "Quiet hours end"
+                        },
+                        "data_description": {
+                            "warning_notify_recovery": "Send a notification once the warning has cleared.",
+                            "notify_warnings_services": "Mobile services that receive warning notifications only.",
+                            "warning_delay": "A warning is re-checked after this delay before a notification is sent; this avoids notifications for short-lived warnings.",
+                            "warning_quiet_hours_enabled": "During quiet hours, mobile warning notifications are held and delivered once the period ends. Persistent notifications are never held."
+                        }
+                    }
                 }
             }
         }

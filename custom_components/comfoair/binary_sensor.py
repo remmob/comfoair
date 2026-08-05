@@ -6,7 +6,7 @@ from homeassistant.components.binary_sensor import BinarySensorDeviceClass, Bina
 from homeassistant.const import CONF_NAME
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import ALARM_BITS, DOMAIN, GATED_WARNING_KEYS, alarm_data_key
+from .const import ALARM_BITS, DOMAIN, WARNING_KEYS, alarm_data_key
 
 
 async def async_setup_entry(hass, entry, async_add_entities) -> None:
@@ -24,7 +24,7 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
 
 
 class SupplyCondensationAlarmSensor(CoordinatorEntity, BinarySensorEntity):
-    """Binary sensor that triggers when supply air dewpoint approaches room temperature."""
+    """Binary sensor that triggers when the linked temperature reaches the condensation limit."""
 
     _attr_device_class = BinarySensorDeviceClass.MOISTURE
     _attr_icon = "mdi:water-alert"
@@ -88,6 +88,6 @@ class AlarmBitSensor(CoordinatorEntity, BinarySensorEntity):
         val = self.is_on
         if val is None:
             return None
-        if self._data_key in GATED_WARNING_KEYS:
+        if self._data_key in WARNING_KEYS:
             return "warning" if val else "no warning"
         return "alarm" if val else "no alarm"

@@ -1,24 +1,32 @@
-"""Alarm monitoring for the ComfoAir integration."""
+"""Alarm and warning monitoring for the ComfoAir integration.
+
+Alarms and warnings are tracked separately: each has its own confirmation
+delay, notification title, mobile notify services and quiet-hours window.
+Persistent notifications are always sent immediately; mobile notifications are
+routed through the matching QuietHours instance so they can be held overnight.
+"""
 
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 
-from homeassistant.components.persistent_notification import async_create as create_persistent_notification
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.event import async_track_time_change
 
 from .const import (
     ALARM_BITS,
-    DOMAIN,
-    GATED_WARNING_KEYS,
-    WARNING_QUIET_HOUR_END,
-    WARNING_QUIET_HOUR_START,
+    DEFAULT_ALARM_DELAY,
+    DEFAULT_ALARM_NOTIFICATION_TITLE,
+    DEFAULT_WARNING_DELAY,
+    DEFAULT_WARNING_NOTIFICATION_TITLE,
+    WARNING_KEYS,
     alarm_data_key,
 )
+from .notifications import QuietHours, parse_services, send_mobile, send_persistent
 
 _LOGGER = logging.getLogger(__name__)
+
+CATEGORY_ALARM = "alarm"
+CATEGORY_WARNING = "warning"
 
 _DESCRIPTIONS: dict[str, str] = {
     alarm_data_key(reg_str, bit_pos): description
@@ -30,6 +38,11 @@ _DESCRIPTIONS["supply_condensation_alarm"] = "condensation alarm"
 ALL_ALARM_KEYS: set[str] = set(_DESCRIPTIONS)
 
 
+def _category(key: str) -> str:
+    """Which notification category an alarm bit belongs to."""
+    return CATEGORY_WARNING if key in WARNING_KEYS else CATEGORY_ALARM
+
+
 class AlarmMonitor:
     """Monitor ComfoAir alarm/warning bits and send notifications."""
 
@@ -39,42 +52,107 @@ class AlarmMonitor:
         name: str,
         hub,
         notify_alarms_mobile: bool = False,
-        notify_alarms_persistent: bool = False,
-        notify_services: str = "",
-        notification_title: str = "ComfoAir in storing!",
-        alarm_delay: int = 60,
+        notify_warnings_mobile: bool = False,
+        notify_persistent: bool = False,
+        alarm_notify_recovery: bool = True,
+        warning_notify_recovery: bool = True,
+        alarm_services: str = "",
+        warning_services: str = "",
+        alarm_title: str = DEFAULT_ALARM_NOTIFICATION_TITLE,
+        warning_title: str = DEFAULT_WARNING_NOTIFICATION_TITLE,
+        alarm_delay: int = DEFAULT_ALARM_DELAY,
+        warning_delay: int = DEFAULT_WARNING_DELAY,
+        alarm_quiet_enabled: bool = False,
+        alarm_quiet_start=None,
+        alarm_quiet_end=None,
+        warning_quiet_enabled: bool = True,
+        warning_quiet_start=None,
+        warning_quiet_end=None,
     ) -> None:
         """Initialize the alarm monitor."""
         self.hass = hass
         self.name = name
         self._hub = hub
-        self._notify_alarms_mobile = notify_alarms_mobile
-        self._notify_alarms_persistent = notify_alarms_persistent
-        self._notify_services = (
-            [s.strip() for s in notify_services.split(",") if s.strip()] if notify_services else []
-        )
-        self._notification_title = notification_title
-        self._alarm_delay = alarm_delay
+        self._notify_mobile = {
+            CATEGORY_ALARM: notify_alarms_mobile,
+            CATEGORY_WARNING: notify_warnings_mobile,
+        }
+        self._notify_persistent = notify_persistent
+        self._notify_recovery = {
+            CATEGORY_ALARM: alarm_notify_recovery,
+            CATEGORY_WARNING: warning_notify_recovery,
+        }
+        self._services = {
+            CATEGORY_ALARM: parse_services(alarm_services),
+            CATEGORY_WARNING: parse_services(warning_services),
+        }
+        self._titles = {
+            CATEGORY_ALARM: alarm_title,
+            CATEGORY_WARNING: warning_title,
+        }
+        self._delays = {
+            CATEGORY_ALARM: alarm_delay,
+            CATEGORY_WARNING: warning_delay,
+        }
         self._active: dict[str, bool] = {}
-        self._pending_gated: set[str] = set()
+        self._notified: set[str] = set()
         self._remove_listener = None
-        self._remove_quiet_hour_trigger = None
+
+        # A separate quiet-hours window per category.
+        self._quiet = {
+            CATEGORY_ALARM: QuietHours(
+                hass,
+                f"{name} alarm",
+                alarm_quiet_enabled,
+                alarm_quiet_start,
+                alarm_quiet_end,
+                self._mobile_sender(CATEGORY_ALARM),
+            ),
+            CATEGORY_WARNING: QuietHours(
+                hass,
+                f"{name} warning",
+                warning_quiet_enabled,
+                warning_quiet_start,
+                warning_quiet_end,
+                self._mobile_sender(CATEGORY_WARNING),
+            ),
+        }
+
+    def _mobile_sender(self, category: str):
+        """Return a coroutine that sends mobile notifications for this category."""
+
+        async def _send(message: str) -> None:
+            await send_mobile(
+                self.hass, self._services[category], self._titles[category], message
+            )
+
+        return _send
+
+    def _enabled(self, category: str) -> bool:
+        """Whether this category notifies on any channel."""
+        return self._notify_mobile[category] or self._notify_persistent
 
     def start_monitoring(self) -> None:
         """Start monitoring hub data updates for alarm bit transitions."""
-        if not self._notify_alarms_mobile and not self._notify_alarms_persistent:
+        if not any(self._enabled(category) for category in self._quiet):
             _LOGGER.debug("Alarm notifications disabled, not starting monitor")
             return
 
+        for category, quiet in self._quiet.items():
+            if self._enabled(category):
+                quiet.start()
+
         self._remove_listener = self._hub.async_add_listener(self._handle_hub_update)
-        self._remove_quiet_hour_trigger = async_track_time_change(
-            self.hass,
-            self._flush_pending_gated,
-            hour=WARNING_QUIET_HOUR_END,
-            minute=0,
-            second=0,
-        )
         _LOGGER.info("Started ComfoAir alarm monitoring for %s", self.name)
+
+    def stop_monitoring(self) -> None:
+        """Stop monitoring hub data updates."""
+        if self._remove_listener is not None:
+            self._remove_listener()
+            self._remove_listener = None
+        for quiet in self._quiet.values():
+            quiet.stop()
+        _LOGGER.debug("Stopped ComfoAir alarm monitoring for %s", self.name)
 
     @callback
     def _handle_hub_update(self) -> None:
@@ -90,90 +168,56 @@ class AlarmMonitor:
             old_value = self._active.get(key)
             self._active[key] = new_value
 
+            category = _category(key)
+            if not self._enabled(category):
+                continue
+
             if old_value is False and new_value is True:
+                # Re-check after the configured delay to skip transient bits.
                 self.hass.loop.call_later(
-                    self._alarm_delay,
+                    self._delays[category],
                     lambda k=key: self.hass.async_create_task(self._maybe_notify(k)),
                 )
-                _LOGGER.debug("%s triggered, will notify after %ss", key, self._alarm_delay)
+                _LOGGER.debug(
+                    "%s triggered, will notify after %ss", key, self._delays[category]
+                )
             elif old_value is True and new_value is False:
-                self._pending_gated.discard(key)
-                _LOGGER.debug("%s cleared", key)
+                self._handle_recovery(key)
 
     async def _maybe_notify(self, key: str) -> None:
-        """Send the notification if the alarm/warning is still active after the delay.
-
-        The persistent notification is never time-gated (it doesn't wake anyone up).
-        Only the mobile push for the two "warning" bits is held outside 07:00-23:00,
-        since that's the one that would wake you up for a non-urgent warning.
-        """
+        """Send the notification if the alarm/warning is still active after the delay."""
         data = self._hub.data
         if not isinstance(data, dict) or not data.get(key):
             _LOGGER.debug("%s was cleared before the notification delay elapsed", key)
             return
 
         description = _DESCRIPTIONS.get(key, key)
-        message = f"{self.name} {description}"
+        self._notified.add(key)
+        await self._send(key, f"{self.name} {description}")
 
-        if self._notify_alarms_persistent:
-            self._send_persistent(key, message)
+    def _handle_recovery(self, key: str) -> None:
+        """Announce that an alarm/warning cleared, if it was notified before."""
+        was_notified = key in self._notified
+        self._notified.discard(key)
+        category = _category(key)
+        # A held mobile notification is no longer relevant once the bit cleared.
+        self._quiet[category].clear_held()
+        _LOGGER.debug("%s cleared", key)
 
-        if self._notify_alarms_mobile:
-            if key in GATED_WARNING_KEYS and not self._in_notification_window():
-                self._pending_gated.add(key)
-                _LOGGER.debug(
-                    "%s mobile notification held until %02d:00 (outside %02d:00-%02d:00 window)",
-                    key,
-                    WARNING_QUIET_HOUR_END,
-                    WARNING_QUIET_HOUR_END,
-                    WARNING_QUIET_HOUR_START,
-                )
-            else:
-                await self._send_mobile(message)
-
-    @staticmethod
-    def _in_notification_window() -> bool:
-        hour = datetime.now().hour
-        return WARNING_QUIET_HOUR_END <= hour < WARNING_QUIET_HOUR_START
-
-    @callback
-    def _flush_pending_gated(self, _now) -> None:
-        """Send any mobile warning notifications that were held overnight."""
-        if not self._pending_gated:
+        if not self._notify_recovery[category] or not was_notified:
             return
 
-        data = self._hub.data
-        pending = list(self._pending_gated)
-        self._pending_gated.clear()
-
-        for key in pending:
-            if isinstance(data, dict) and data.get(key):
-                description = _DESCRIPTIONS.get(key, key)
-                self.hass.async_create_task(self._send_mobile(f"{self.name} {description}"))
-
-    def _send_persistent(self, key: str, message: str) -> None:
-        create_persistent_notification(
-            self.hass, message, self._notification_title, f"{DOMAIN}_{self.name}_{key}"
+        description = _DESCRIPTIONS.get(key, key)
+        self.hass.async_create_task(
+            self._send(key, f"{self.name} {description} hersteld")
         )
 
-    async def _send_mobile(self, message: str) -> None:
-        for service_name in self._notify_services:
-            try:
-                await self.hass.services.async_call(
-                    "notify",
-                    service_name,
-                    {"title": self._notification_title, "message": message},
-                )
-                _LOGGER.debug("Sent mobile notification to %s", service_name)
-            except Exception as err:
-                _LOGGER.error("Failed to send notification to %s: %s", service_name, err)
-
-    def stop_monitoring(self) -> None:
-        """Stop monitoring hub data updates."""
-        if self._remove_listener is not None:
-            self._remove_listener()
-            self._remove_listener = None
-        if self._remove_quiet_hour_trigger is not None:
-            self._remove_quiet_hour_trigger()
-            self._remove_quiet_hour_trigger = None
-        _LOGGER.debug("Stopped ComfoAir alarm monitoring for %s", self.name)
+    async def _send(self, key: str, message: str) -> None:
+        """Persistent immediately, mobile through the category's quiet hours."""
+        category = _category(key)
+        if self._notify_persistent:
+            send_persistent(
+                self.hass, self.name, message, self._titles[category], key
+            )
+        if self._notify_mobile[category]:
+            await self._quiet[category].deliver(message)

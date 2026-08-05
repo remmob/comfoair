@@ -1,6 +1,8 @@
 [![en](https://img.shields.io/badge/lang-en-red.svg)](README.md)
 [![nl](https://img.shields.io/badge/lang-nl-orange.svg)](README.nl.md)
 
+![Version](https://img.shields.io/github/v/release/remmob/comfoair 'Release') ![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg 'Default Home') ![HA min](https://img.shields.io/badge/Home%20Assistant-2025.12%2B-41BDF5.svg 'Minimum Home Assistant version') [![total issues](https://img.shields.io/github/issues/remmob/comfoair 'Total issues')](https://github.com/remmob/comfoair/issues) ![Stars](https://img.shields.io/github/stars/remmob/comfoair)
+
 # Zehnder ComfoAir E300/E400 Home Assistant Integration
 
 A Home Assistant custom integration for the Zehnder ComfoAir E300/E400 ventilation unit over Modbus (RTU or TCP), with a full sensor set, alarm monitoring, and configurable notifications.
@@ -12,31 +14,42 @@ A Home Assistant custom integration for the Zehnder ComfoAir E300/E400 ventilati
 - Modbus RTU (serial) and Modbus TCP support, fully configurable through the Home Assistant UI (no YAML).
 - 40+ sensors: temperatures, humidities, fan speeds, air flows, bypass position, speed setpoints, runtime counters and more.
 - Calculated comfort sensors: absolute humidity, enthalpy, dew point (per air stream) and heat recovery efficiency.
-- Binary sensors for every alarm/warning bit reported by the unit (sensor failures, filter warning/error, pre-heater faults, bypass motor faults, frost protection) plus a supply-air condensation alarm derived from the dew point.
-- Optional push and/or persistent notifications for alarms and for connection errors, with a configurable delay and quiet hours (07:00-23:00) for non-urgent warnings.
+- Binary sensors for every alarm/warning bit reported by the unit (sensor failures, filter warning/error, pre-heater faults, bypass motor faults, frost protection).
+- **Condensation limit sensor and condensation alarm**: the lowest temperature that stays clear of condensation indoors, ready to use as a setpoint for underfloor cooling or a heat pump, with an optional alarm on a temperature entity of your own choosing.
+- **Per-category notifications with quiet hours**: connection errors, alarms and warnings each have their own mobile notify services, notification subject, delay, recovery message and quiet-hours window, as push and/or persistent notifications.
 - Fully reconfigurable afterwards via the integration's options screen - no need to remove and re-add the integration to change settings.
+- Dutch and English translations of the UI.
 
-## Installation
+## 📦 Installation
 
-### HACS Custom Repository
+### HACS (default store)
 
-1. Open HACS in Home Assistant.
-2. Click the three dots menu (⋮) in the top right corner.
-3. Select 'Custom repositories'.
+Zehnder ComfoAir is available in the [HACS](https://hacs.xyz) default store.
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=remmob&repository=comfoair&category=integration)
+
+1. Open **HACS** in Home Assistant.
+2. Search for **Zehnder ComfoAir** and open it (or use the button above).
+3. Click **Download**.
+4. **Restart Home Assistant**.
+
+### HACS (custom repository)
+
+1. Open **HACS** in Home Assistant.
+2. Click the three-dot menu (⋮) in the top right corner.
+3. Select **Custom repositories**.
 4. Add this repository URL: `https://github.com/remmob/comfoair`.
-5. Set the category to **Integration**.
-6. Click 'Add' to save.
+5. Set the category to **Integration** and click **Add**.
+6. Search for **Zehnder ComfoAir** and download it.
+7. **Restart Home Assistant**.
 
 See the [official HACS documentation](https://hacs.xyz/docs/faq/custom_repositories/) for more details.
 
 ### Manual
 
-1. Download or copy the `comfoair` folder from this repository:
-	[`custom_components/comfoair`](../comfoair)
-2. Place this folder in your Home Assistant installation under:
-	`config/custom_components/comfoair`
-3. Restart Home Assistant.
-4. Add the integration via the Integrations screen in the Home Assistant UI.
+1. Download or copy the `comfoair` folder from this repository: [`custom_components/comfoair`](custom_components/comfoair)
+2. Place this folder in your Home Assistant installation under: `config/custom_components/comfoair`
+3. **Restart Home Assistant**.
 
 More info and updates:
 - [GitHub: remmob/comfoair](https://github.com/remmob/comfoair)
@@ -86,15 +99,44 @@ All settings can be changed after setup, without removing the integration. Open 
 
 ![Integration entry](Images/edit-entry-en.png)
 
-This opens the settings screen, where you can change the connection details, the polling interval, the dew point margin used for the condensation alarm, and the notification behavior for alarms and connection errors.
+This opens the settings screen, where you can change the connection details, the polling interval, the condensation settings, and the notification behavior.
 
 ![Settings, part 1](Images/edit-1-en.png)
 ![Settings, part 2](Images/edit-2-en.png)
 
-- **Dew point margin**: how close the supply air dew point may get to the extract air temperature before the condensation alarm triggers.
-- **Alarm notifications**: optionally send a mobile push notification and/or a persistent notification when any alarm/warning bit becomes active, after a configurable delay. Filter warning and frost protection warning (non-urgent) are only pushed between 07:00-23:00; outside that window they are held and sent at 07:00.
-- **Connection error notifications**: same mechanism, triggered when the unit becomes unreachable over Modbus.
-- Notify services can be picked from your configured `notify.mobile_app_*` services, or entered manually as a comma-separated list.
+*ℹ️ The screenshots above still show the older settings screen; the notification options are now grouped into the collapsible sections described below.*
+
+### Condensation
+
+- **Dew point margin**: safety margin above the indoor dew point. The **condensation limit** sensor reports the indoor dew point plus this margin: the lowest temperature that still stays clear of condensation.
+- **Temperature entity for the condensation alarm** *(optional)*: pick the entity holding the flow temperature of your underfloor heating or cooling. The **condensation alarm** binary sensor goes off as soon as that temperature drops to or below the condensation limit. Leave it empty to only use the condensation limit sensor in your own automations.
+- **Maximum change of the condensation limit (°C per hour)**: keeps the condensation limit sensor calm enough to feed to a heat pump as a setpoint. Showering raises the indoor humidity sharply for a couple of hours; this limits how fast the sensor may follow, so such a peak is flattened while slow changes still come through. `0` disables the limit. The condensation alarm always uses the unlimited value.
+
+### Notifications
+
+Notifications are grouped into collapsible sections, one per category. Each category is
+configured independently, so a filter warning can go to a different phone than a
+connection error - or nowhere at all.
+
+- **General**: the shared toggle for persistent notifications (shown in the Home Assistant interface).
+- **Connection errors**: the Modbus connection to the unit is lost.
+- **Alarms**: faults of the ventilation unit, such as a sensor, fan or pre-heater error.
+- **Warnings**: the filter warning and the frost protection warning.
+
+Every category has its own:
+
+| Option | What it does |
+|--------|--------------|
+| Notify on ... | Send mobile push notifications for this category |
+| Notify on recovery | Send a follow-up message once the alarm/warning has cleared or the connection is back |
+| Mobile notify services | The `notify.mobile_app_*` services for this category, picked from a list or entered as a comma-separated list |
+| Notification subject | The title used for this category's notifications |
+| Delay (seconds) | The condition is re-checked after this delay before notifying, which suppresses short-lived alarms |
+| Quiet hours | Hold mobile notifications between a start and end time and deliver them once the period ends. Persistent notifications are never held |
+
+Quiet hours for warnings default to **23:00-07:00**, so the filter and frost protection
+warnings never wake anyone up at night - the same behaviour as before, now adjustable.
+Quiet hours for connection errors and alarms default to **off**.
 
 The device page shows the device info, all sensors and the recent alarm/warning activity:
 
@@ -180,14 +222,15 @@ The device page shows the device info, all sensors and the recent alarm/warning 
 | 402      | 4   | Bypass motor outdoor            |
 | 402      | 5   | Frost protection warning        |
 
-Each bit is exposed as its own binary sensor. "Filter warning" and "Frost protection warning" are treated as non-urgent warnings and are subject to the 07:00-23:00 mobile notification window described above; all other bits are treated as alarms.
+Each bit is exposed as its own binary sensor. "Filter warning" and "Frost protection warning" belong to the **Warnings** notification category (quiet hours 23:00-07:00 by default); all other bits belong to the **Alarms** category.
 
 ### Calculated sensors
 
 These are not raw Modbus registers, but derived from the temperature/humidity registers above:
 
 - **Absolute humidity** (kg/kg) and **enthalpy** (kJ/kg) for the intake, supply, extract and exhaust air streams.
-- **Dew point** (°C) for the intake, supply, extract and exhaust air streams, used among other things to drive the supply-air condensation alarm.
+- **Dew point** (°C) for the intake, supply, extract and exhaust air streams.
+- **Condensation limit** (°C): the indoor dew point (extract air) plus the configured dew point margin - the lowest temperature that stays clear of condensation. Optionally rate-limited so it can be used directly as a setpoint for underfloor cooling or a heat pump.
 - **Heat recovery efficiency** (%), based on supply and extract air temperatures.
 - **Air flow balance** (m³/h), the difference between supply and extract air flow.
 

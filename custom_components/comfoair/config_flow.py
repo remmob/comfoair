@@ -13,7 +13,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT, CONF_SCAN_INTERVAL
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.data_entry_flow import FlowResult
+from homeassistant.data_entry_flow import FlowResult, section
 from homeassistant.helpers import selector
 
 _LOGGER = logging.getLogger(__name__)
@@ -26,10 +26,20 @@ from .const import (
     ALLOWED_STOPBITS,
     CONF_ALARM_DELAY,
     CONF_ALARM_NOTIFICATION_TITLE,
+    CONF_ALARM_NOTIFY_RECOVERY,
+    CONF_ALARM_QUIET_ENABLED,
+    CONF_ALARM_QUIET_END,
+    CONF_ALARM_QUIET_START,
     CONF_BAUDRATE,
     CONF_BYTESIZE,
+    CONF_CONDENSATION_MAX_CHANGE,
+    CONF_CONDENSATION_SOURCE,
     CONF_CONNECTION_ERROR_DELAY,
     CONF_CONNECTION_ERROR_NOTIFICATION_TITLE,
+    CONF_CONNECTION_NOTIFY_RECOVERY,
+    CONF_CONNECTION_QUIET_ENABLED,
+    CONF_CONNECTION_QUIET_END,
+    CONF_CONNECTION_QUIET_START,
     CONF_CONTROL_TYPE,
     CONF_DEVICE,
     CONF_DEVICE_ID,
@@ -41,14 +51,25 @@ from .const import (
     CONF_NOTIFY_CONNECTION_ERRORS_MOBILE,
     CONF_NOTIFY_CONNECTION_ERRORS_PERSISTENT,
     CONF_NOTIFY_CONNECTION_ERRORS_SERVICES,
+    CONF_NOTIFY_PERSISTENT,
+    CONF_NOTIFY_WARNINGS_MOBILE,
+    CONF_NOTIFY_WARNINGS_SERVICES,
     CONF_PARITY,
     CONF_STOPBITS,
+    CONF_WARNING_DELAY,
+    CONF_WARNING_NOTIFICATION_TITLE,
+    CONF_WARNING_NOTIFY_RECOVERY,
+    CONF_WARNING_QUIET_ENABLED,
+    CONF_WARNING_QUIET_END,
+    CONF_WARNING_QUIET_START,
     CONTROL_TYPE_0_10V,
     CONTROL_TYPE_MANUAL,
     CONTROL_TYPE_RF,
     DEFAULT_ALARM_DELAY,
     DEFAULT_ALARM_NOTIFICATION_TITLE,
     DEFAULT_BAUDRATE,
+    DEFAULT_CONDENSATION_MAX_CHANGE,
+    DEFAULT_CONDENSATION_SOURCE,
     DEFAULT_CONTROL_TYPE,
     DEFAULT_BYTESIZE,
     DEFAULT_CONNECTION_ERROR_DELAY,
@@ -62,14 +83,25 @@ from .const import (
     DEFAULT_NOTIFY_CONNECTION_ERRORS_MOBILE,
     DEFAULT_NOTIFY_CONNECTION_ERRORS_PERSISTENT,
     DEFAULT_NOTIFY_CONNECTION_ERRORS_SERVICES,
+    DEFAULT_NOTIFY_RECOVERY,
     DEFAULT_PARITY,
     DEFAULT_PORT,
+    DEFAULT_QUIET_HOURS_ENABLED,
+    DEFAULT_QUIET_HOURS_END,
+    DEFAULT_QUIET_HOURS_START,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_STOPBITS,
+    DEFAULT_WARNING_NOTIFICATION_TITLE,
+    DEFAULT_WARNING_QUIET_HOURS_ENABLED,
     DOMAIN,
     MODE_SERIAL,
     MODE_TCP,
     MODES,
+    SECTION_ALARM,
+    SECTION_CONNECTION,
+    SECTION_GENERAL,
+    SECTION_KEYS,
+    SECTION_WARNING,
 )
 
 
@@ -120,58 +152,211 @@ def _notify_services_selector(hass: HomeAssistant) -> selector.SelectSelector:
     )
 
 
-def _notification_schema_fields(hass: HomeAssistant, current: dict) -> dict:
-    """Shared alarm/connection-error notification fields for the options flow."""
+def _persistent_default(current: dict) -> bool:
+    """Shared persistent toggle, falling back to the legacy per-category ones."""
+    legacy = current.get(
+        CONF_NOTIFY_ALARMS_PERSISTENT, DEFAULT_NOTIFY_ALARMS_PERSISTENT
+    ) or current.get(
+        CONF_NOTIFY_CONNECTION_ERRORS_PERSISTENT, DEFAULT_NOTIFY_CONNECTION_ERRORS_PERSISTENT
+    )
+    return current.get(CONF_NOTIFY_PERSISTENT, legacy)
+
+
+def _general_section(hass: HomeAssistant, current: dict):
+    """Settings shared by every notification category."""
+    return section(
+        vol.Schema(
+            {
+                vol.Optional(
+                    CONF_NOTIFY_PERSISTENT,
+                    default=_persistent_default(current),
+                ): bool,
+            }
+        ),
+        {"collapsed": False},
+    )
+
+
+def _connection_section(hass: HomeAssistant, current: dict):
+    return section(
+        vol.Schema(
+            {
+                vol.Optional(
+                    CONF_NOTIFY_CONNECTION_ERRORS_MOBILE,
+                    default=current.get(
+                        CONF_NOTIFY_CONNECTION_ERRORS_MOBILE, DEFAULT_NOTIFY_CONNECTION_ERRORS_MOBILE
+                    ),
+                ): bool,
+                vol.Optional(
+                    CONF_CONNECTION_NOTIFY_RECOVERY,
+                    default=current.get(CONF_CONNECTION_NOTIFY_RECOVERY, DEFAULT_NOTIFY_RECOVERY),
+                ): bool,
+                vol.Optional(
+                    CONF_NOTIFY_CONNECTION_ERRORS_SERVICES,
+                    default=_services_default(
+                        current.get(
+                            CONF_NOTIFY_CONNECTION_ERRORS_SERVICES, DEFAULT_NOTIFY_CONNECTION_ERRORS_SERVICES
+                        )
+                    ),
+                ): _notify_services_selector(hass),
+                vol.Optional(
+                    CONF_CONNECTION_ERROR_NOTIFICATION_TITLE,
+                    default=current.get(
+                        CONF_CONNECTION_ERROR_NOTIFICATION_TITLE, DEFAULT_CONNECTION_ERROR_NOTIFICATION_TITLE
+                    ),
+                ): str,
+                vol.Optional(
+                    CONF_CONNECTION_ERROR_DELAY,
+                    default=current.get(CONF_CONNECTION_ERROR_DELAY, DEFAULT_CONNECTION_ERROR_DELAY),
+                ): vol.All(vol.Coerce(int), vol.Range(min=60, max=3600)),
+                vol.Optional(
+                    CONF_CONNECTION_QUIET_ENABLED,
+                    default=current.get(CONF_CONNECTION_QUIET_ENABLED, DEFAULT_QUIET_HOURS_ENABLED),
+                ): bool,
+                vol.Optional(
+                    CONF_CONNECTION_QUIET_START,
+                    default=current.get(CONF_CONNECTION_QUIET_START, DEFAULT_QUIET_HOURS_START),
+                ): selector.TimeSelector(),
+                vol.Optional(
+                    CONF_CONNECTION_QUIET_END,
+                    default=current.get(CONF_CONNECTION_QUIET_END, DEFAULT_QUIET_HOURS_END),
+                ): selector.TimeSelector(),
+            }
+        ),
+        {"collapsed": True},
+    )
+
+
+def _alarm_section(hass: HomeAssistant, current: dict):
+    return section(
+        vol.Schema(
+            {
+                vol.Optional(
+                    CONF_NOTIFY_ALARMS_MOBILE,
+                    default=current.get(CONF_NOTIFY_ALARMS_MOBILE, DEFAULT_NOTIFY_ALARMS_MOBILE),
+                ): bool,
+                vol.Optional(
+                    CONF_ALARM_NOTIFY_RECOVERY,
+                    default=current.get(CONF_ALARM_NOTIFY_RECOVERY, DEFAULT_NOTIFY_RECOVERY),
+                ): bool,
+                vol.Optional(
+                    CONF_NOTIFY_ALARMS_SERVICES,
+                    default=_services_default(
+                        current.get(CONF_NOTIFY_ALARMS_SERVICES, DEFAULT_NOTIFY_ALARMS_SERVICES)
+                    ),
+                ): _notify_services_selector(hass),
+                vol.Optional(
+                    CONF_ALARM_NOTIFICATION_TITLE,
+                    default=current.get(CONF_ALARM_NOTIFICATION_TITLE, DEFAULT_ALARM_NOTIFICATION_TITLE),
+                ): str,
+                vol.Optional(
+                    CONF_ALARM_DELAY,
+                    default=current.get(CONF_ALARM_DELAY, DEFAULT_ALARM_DELAY),
+                ): vol.All(vol.Coerce(int), vol.Range(min=0, max=3600)),
+                vol.Optional(
+                    CONF_ALARM_QUIET_ENABLED,
+                    default=current.get(CONF_ALARM_QUIET_ENABLED, DEFAULT_QUIET_HOURS_ENABLED),
+                ): bool,
+                vol.Optional(
+                    CONF_ALARM_QUIET_START,
+                    default=current.get(CONF_ALARM_QUIET_START, DEFAULT_QUIET_HOURS_START),
+                ): selector.TimeSelector(),
+                vol.Optional(
+                    CONF_ALARM_QUIET_END,
+                    default=current.get(CONF_ALARM_QUIET_END, DEFAULT_QUIET_HOURS_END),
+                ): selector.TimeSelector(),
+            }
+        ),
+        {"collapsed": True},
+    )
+
+
+def _warning_section(hass: HomeAssistant, current: dict):
+    """Warnings inherit the alarm settings for entries created before the split."""
+    return section(
+        vol.Schema(
+            {
+                vol.Optional(
+                    CONF_NOTIFY_WARNINGS_MOBILE,
+                    default=current.get(
+                        CONF_NOTIFY_WARNINGS_MOBILE,
+                        current.get(CONF_NOTIFY_ALARMS_MOBILE, DEFAULT_NOTIFY_ALARMS_MOBILE),
+                    ),
+                ): bool,
+                vol.Optional(
+                    CONF_WARNING_NOTIFY_RECOVERY,
+                    default=current.get(CONF_WARNING_NOTIFY_RECOVERY, DEFAULT_NOTIFY_RECOVERY),
+                ): bool,
+                vol.Optional(
+                    CONF_NOTIFY_WARNINGS_SERVICES,
+                    default=_services_default(
+                        current.get(
+                            CONF_NOTIFY_WARNINGS_SERVICES,
+                            current.get(CONF_NOTIFY_ALARMS_SERVICES, DEFAULT_NOTIFY_ALARMS_SERVICES),
+                        )
+                    ),
+                ): _notify_services_selector(hass),
+                vol.Optional(
+                    CONF_WARNING_NOTIFICATION_TITLE,
+                    default=current.get(CONF_WARNING_NOTIFICATION_TITLE, DEFAULT_WARNING_NOTIFICATION_TITLE),
+                ): str,
+                vol.Optional(
+                    CONF_WARNING_DELAY,
+                    default=current.get(
+                        CONF_WARNING_DELAY, current.get(CONF_ALARM_DELAY, DEFAULT_ALARM_DELAY)
+                    ),
+                ): vol.All(vol.Coerce(int), vol.Range(min=0, max=3600)),
+                vol.Optional(
+                    CONF_WARNING_QUIET_ENABLED,
+                    default=current.get(CONF_WARNING_QUIET_ENABLED, DEFAULT_WARNING_QUIET_HOURS_ENABLED),
+                ): bool,
+                vol.Optional(
+                    CONF_WARNING_QUIET_START,
+                    default=current.get(CONF_WARNING_QUIET_START, DEFAULT_QUIET_HOURS_START),
+                ): selector.TimeSelector(),
+                vol.Optional(
+                    CONF_WARNING_QUIET_END,
+                    default=current.get(CONF_WARNING_QUIET_END, DEFAULT_QUIET_HOURS_END),
+                ): selector.TimeSelector(),
+            }
+        ),
+        {"collapsed": True},
+    )
+
+
+def _notification_sections(hass: HomeAssistant, current: dict) -> dict:
+    """Collapsible sections: shared settings + one per notification category."""
     return {
-        # === ALARM NOTIFICATIONS ===
-        vol.Optional(
-            CONF_NOTIFY_ALARMS_MOBILE,
-            default=current.get(CONF_NOTIFY_ALARMS_MOBILE, DEFAULT_NOTIFY_ALARMS_MOBILE),
-        ): bool,
-        vol.Optional(
-            CONF_NOTIFY_ALARMS_PERSISTENT,
-            default=current.get(CONF_NOTIFY_ALARMS_PERSISTENT, DEFAULT_NOTIFY_ALARMS_PERSISTENT),
-        ): bool,
-        vol.Optional(
-            CONF_NOTIFY_ALARMS_SERVICES,
-            default=_services_default(current.get(CONF_NOTIFY_ALARMS_SERVICES, DEFAULT_NOTIFY_ALARMS_SERVICES)),
-        ): _notify_services_selector(hass),
-        vol.Optional(
-            CONF_ALARM_NOTIFICATION_TITLE,
-            default=current.get(CONF_ALARM_NOTIFICATION_TITLE, DEFAULT_ALARM_NOTIFICATION_TITLE),
-        ): str,
-        vol.Optional(
-            CONF_ALARM_DELAY,
-            default=current.get(CONF_ALARM_DELAY, DEFAULT_ALARM_DELAY),
-        ): vol.All(vol.Coerce(int), vol.Range(min=0, max=3600)),
-        # === CONNECTION ERROR NOTIFICATIONS ===
-        vol.Optional(
-            CONF_NOTIFY_CONNECTION_ERRORS_MOBILE,
-            default=current.get(CONF_NOTIFY_CONNECTION_ERRORS_MOBILE, DEFAULT_NOTIFY_CONNECTION_ERRORS_MOBILE),
-        ): bool,
-        vol.Optional(
-            CONF_NOTIFY_CONNECTION_ERRORS_PERSISTENT,
-            default=current.get(
-                CONF_NOTIFY_CONNECTION_ERRORS_PERSISTENT, DEFAULT_NOTIFY_CONNECTION_ERRORS_PERSISTENT
-            ),
-        ): bool,
-        vol.Optional(
-            CONF_NOTIFY_CONNECTION_ERRORS_SERVICES,
-            default=_services_default(
-                current.get(CONF_NOTIFY_CONNECTION_ERRORS_SERVICES, DEFAULT_NOTIFY_CONNECTION_ERRORS_SERVICES)
-            ),
-        ): _notify_services_selector(hass),
-        vol.Optional(
-            CONF_CONNECTION_ERROR_NOTIFICATION_TITLE,
-            default=current.get(
-                CONF_CONNECTION_ERROR_NOTIFICATION_TITLE, DEFAULT_CONNECTION_ERROR_NOTIFICATION_TITLE
-            ),
-        ): str,
-        vol.Optional(
-            CONF_CONNECTION_ERROR_DELAY,
-            default=current.get(CONF_CONNECTION_ERROR_DELAY, DEFAULT_CONNECTION_ERROR_DELAY),
-        ): vol.All(vol.Coerce(int), vol.Range(min=60, max=3600)),
+        vol.Required(SECTION_GENERAL): _general_section(hass, current),
+        vol.Required(SECTION_CONNECTION): _connection_section(hass, current),
+        vol.Required(SECTION_ALARM): _alarm_section(hass, current),
+        vol.Required(SECTION_WARNING): _warning_section(hass, current),
     }
+
+
+def _flatten_sections(user_input: dict) -> dict:
+    """Merge the per-section dicts the form returns back into flat config keys."""
+    flat: dict = {}
+    for key, value in user_input.items():
+        if key in SECTION_KEYS and isinstance(value, dict):
+            flat.update(value)
+        else:
+            flat[key] = value
+    # Store each category's mobile services as a comma-separated string.
+    for key in (
+        CONF_NOTIFY_CONNECTION_ERRORS_SERVICES,
+        CONF_NOTIFY_ALARMS_SERVICES,
+        CONF_NOTIFY_WARNINGS_SERVICES,
+    ):
+        flat[key] = _normalize_services(flat.get(key))
+    return flat
+
+
+def _condensation_source_selector() -> selector.EntitySelector:
+    """Pick the temperature entity the condensation limit is compared with."""
+    return selector.EntitySelector(
+        selector.EntitySelectorConfig(domain=["sensor", "number", "input_number"])
+    )
 
 
 def _options_selector(options: list) -> selector.SelectSelector:
@@ -543,11 +728,11 @@ class ComfoAirOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None) -> FlowResult:
         if user_input is not None:
             _LOGGER.debug("Received user_input: %s", user_input)
-            data = _normalize_device_id({**self.config_entry.data, **user_input})
-            data[CONF_NOTIFY_ALARMS_SERVICES] = _normalize_services(user_input.get(CONF_NOTIFY_ALARMS_SERVICES))
-            data[CONF_NOTIFY_CONNECTION_ERRORS_SERVICES] = _normalize_services(
-                user_input.get(CONF_NOTIFY_CONNECTION_ERRORS_SERVICES)
-            )
+            flat = _flatten_sections(user_input)
+            # An entity selector that is cleared is absent from user_input; store an
+            # empty string so the old entity is actually forgotten.
+            flat[CONF_CONDENSATION_SOURCE] = flat.get(CONF_CONDENSATION_SOURCE) or ""
+            data = _normalize_device_id({**self.config_entry.data, **flat})
             self.hass.config_entries.async_update_entry(self.config_entry, data=data)
             await self.hass.config_entries.async_reload(self.config_entry.entry_id)
             return self.async_create_entry(title="", data={})
@@ -565,7 +750,22 @@ class ComfoAirOptionsFlow(config_entries.OptionsFlow):
                 CONF_DEWPOINT_DELTA,
                 default=self.config_entry.data.get(CONF_DEWPOINT_DELTA, DEFAULT_DEWPOINT_DELTA),
             ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=5.0)),
-            **_notification_schema_fields(self.hass, self.config_entry.data),
+            vol.Optional(
+                CONF_CONDENSATION_SOURCE,
+                description={
+                    "suggested_value": self.config_entry.data.get(
+                        CONF_CONDENSATION_SOURCE, DEFAULT_CONDENSATION_SOURCE
+                    )
+                    or None
+                },
+            ): _condensation_source_selector(),
+            vol.Optional(
+                CONF_CONDENSATION_MAX_CHANGE,
+                default=self.config_entry.data.get(
+                    CONF_CONDENSATION_MAX_CHANGE, DEFAULT_CONDENSATION_MAX_CHANGE
+                ),
+            ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=10.0)),
+            **_notification_sections(self.hass, self.config_entry.data),
         }
 
         if mode == MODE_SERIAL:

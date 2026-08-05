@@ -10,12 +10,12 @@ from datetime import datetime, timedelta
 
 from pymodbus.client import ModbusSerialClient, ModbusTcpClient
 from pymodbus.exceptions import ConnectionException, ModbusIOException
-from homeassistant.components.persistent_notification import async_create as create_persistent_notification
+from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (
     BOOLEAN_REGISTERS,
-    DOMAIN,
+    DEFAULT_CONNECTION_ERROR_NOTIFICATION_TITLE,
     ENUM_REGISTERS,
     FIRMWARE_REGISTER,
     MODE_SERIAL,
@@ -26,6 +26,7 @@ from .const import (
     SENSOR_TYPES,
     alarm_data_key,
 )
+from .notifications import QuietHours, parse_services, send_mobile, send_persistent
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -92,11 +93,17 @@ class ComfoAirHub(DataUpdateCoordinator[dict]):
         parity: str | None = None,
         stopbits: int | None = None,
         dewpoint_delta: float = 1.0,
+        condensation_source: str = "",
+        condensation_max_change: float = 0.0,
         notify_connection_errors_mobile: bool = False,
         notify_connection_errors_persistent: bool = False,
+        notify_recovery: bool = True,
         notify_services: str = "",
-        connection_error_notification_title: str = "ComfoAir verbindingsfout!",
+        connection_error_notification_title: str = DEFAULT_CONNECTION_ERROR_NOTIFICATION_TITLE,
         connection_error_delay: int = 60,
+        connection_quiet_enabled: bool = False,
+        connection_quiet_start=None,
+        connection_quiet_end=None,
     ) -> None:
         super().__init__(hass, _LOGGER, name=name, update_interval=timedelta(seconds=scan_interval))
         self._mode = mode
@@ -109,6 +116,11 @@ class ComfoAirHub(DataUpdateCoordinator[dict]):
         self._parity = parity
         self._stopbits = int(stopbits) if stopbits is not None else None
         self._dewpoint_delta = float(dewpoint_delta)
+        self._condensation_source = condensation_source or ""
+        self._condensation_max_change = max(0.0, float(condensation_max_change))
+        self._condensation_limit_raw: float | None = None
+        self._limit_value: float | None = None
+        self._limit_updated: float | None = None
 
         self._client = None
         self._lock = threading.Lock()
@@ -119,9 +131,8 @@ class ComfoAirHub(DataUpdateCoordinator[dict]):
 
         self._notify_connection_errors_mobile = notify_connection_errors_mobile
         self._notify_connection_errors_persistent = notify_connection_errors_persistent
-        self._notify_services = (
-            [s.strip() for s in notify_services.split(",") if s.strip()] if notify_services else []
-        )
+        self._notify_recovery = notify_recovery
+        self._notify_services = parse_services(notify_services)
         self._connection_error_notification_title = connection_error_notification_title
         self._connection_error_notified = False
         self._connection_lost_time = None
@@ -131,6 +142,16 @@ class ComfoAirHub(DataUpdateCoordinator[dict]):
             self._failures_for_delay,
             connection_error_delay,
             scan_interval,
+        )
+
+        # Connection notifications share one quiet-hours window.
+        self._quiet = QuietHours(
+            hass,
+            f"{name} connection",
+            connection_quiet_enabled,
+            connection_quiet_start,
+            connection_quiet_end,
+            self._send_connection_mobile,
         )
 
         storage_key = f"{name}_data_store"
@@ -170,8 +191,13 @@ class ComfoAirHub(DataUpdateCoordinator[dict]):
                 pass
             self._client = None
 
+    def start_notifications(self) -> None:
+        """Start the quiet-hours release trigger for connection notifications."""
+        self._quiet.start()
+
     def close(self) -> None:
         """Disconnect client."""
+        self._quiet.stop()
         try:
             with self._lock:
                 self._reset_client()
@@ -250,7 +276,84 @@ class ComfoAirHub(DataUpdateCoordinator[dict]):
 
         data.update(realtime)
         self.data_store["realtime_data"] = realtime
+        # The alarm uses the unsmoothed limit; a real condensation risk must not
+        # wait for the smoothing window to catch up.
+        data["supply_condensation_alarm"] = self._condensation_alarm(self._condensation_limit_raw)
         return data
+
+    def _rate_limited(self, raw: float | None) -> float | None:
+        """Let the condensation limit move at most so many °C per hour.
+
+        Showering raises the extract humidity sharply for a couple of hours. The
+        rate limit flattens that into a small bump, while slow changes such as the
+        weather still come through in full.
+        """
+        if raw is None:
+            return None
+        if not self._condensation_max_change:
+            self._limit_value = raw
+            return raw
+
+        now = time.monotonic()
+        if self._limit_value is None or self._limit_updated is None:
+            self._limit_value = raw
+            self._limit_updated = now
+            return round(raw, 1)
+
+        max_step = self._condensation_max_change * (now - self._limit_updated) / 3600
+        self._limit_updated = now
+        if raw > self._limit_value:
+            self._limit_value = min(raw, self._limit_value + max_step)
+        else:
+            self._limit_value = max(raw, self._limit_value - max_step)
+        return round(self._limit_value, 1)
+
+    def _condensation_alarm(self, limit: float | None) -> bool | None:
+        """Compare the linked temperature entity with the condensation limit.
+
+        Returns None when no entity is linked or its value cannot be read, so the
+        binary sensor stays unknown instead of reporting a false all-clear.
+        """
+        if limit is None or not self._condensation_source:
+            return None
+
+        state = self.hass.states.get(self._condensation_source)
+        if state is None or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+            _LOGGER.debug("Condensation source %s has no usable state", self._condensation_source)
+            return None
+
+        try:
+            return float(state.state) <= limit
+        except (TypeError, ValueError):
+            _LOGGER.warning(
+                "Condensation source %s is not numeric: %s", self._condensation_source, state.state
+            )
+            return None
+
+    async def _send_connection_mobile(self, message: str) -> None:
+        """Deliver a connection message to the mobile notify services."""
+        await send_mobile(
+            self.hass,
+            self._notify_services,
+            self._connection_error_notification_title,
+            message,
+        )
+
+    async def _send_connection_notification(self, message: str, *, recovered: bool = False) -> None:
+        """Send a connection message: persistent now, mobile via quiet hours."""
+        if self._notify_connection_errors_persistent:
+            send_persistent(
+                self.hass,
+                self.name,
+                message,
+                self._connection_error_notification_title,
+                "connection_error",
+            )
+        if recovered:
+            # A pending "lost" notification is moot once we are back.
+            self._quiet.clear_held()
+        if self._notify_connection_errors_mobile:
+            await self._quiet.deliver(message)
 
     async def _handle_connection_failure(self) -> None:
         """Track consecutive failures and notify once the configured delay has elapsed."""
@@ -273,36 +376,24 @@ class ComfoAirHub(DataUpdateCoordinator[dict]):
             and not self._connection_error_notified
         ):
             lost_time = (self._connection_lost_time or datetime.now()).strftime("%d-%m-%Y %H:%M:%S")
-            message = f"Communicatie met {self.name} verloren sinds {lost_time}"
-
-            if self._notify_connection_errors_persistent:
-                create_persistent_notification(
-                    self.hass,
-                    message,
-                    self._connection_error_notification_title,
-                    f"{DOMAIN}_{self.name}_connection_error",
-                )
-
-            if self._notify_connection_errors_mobile:
-                for service_name in self._notify_services:
-                    try:
-                        await self.hass.services.async_call(
-                            "notify",
-                            service_name,
-                            {"title": self._connection_error_notification_title, "message": message},
-                        )
-                    except Exception as err:
-                        _LOGGER.error("Failed to send connection error notification to %s: %s", service_name, err)
-
+            await self._send_connection_notification(
+                f"Communicatie met {self.name} verloren sinds {lost_time}"
+            )
             self._connection_error_notified = True
 
     async def _handle_connection_restored(self) -> None:
-        """Reset failure tracking once the connection is healthy again."""
+        """Reset failure tracking and optionally announce recovery."""
         if self._consecutive_failures > 0:
             _LOGGER.debug("Connection restored, resetting %s consecutive failures", self._consecutive_failures)
+        was_notified = self._connection_error_notified
         self._consecutive_failures = 0
         self._connection_lost_time = None
         self._connection_error_notified = False
+
+        if was_notified and self._notify_recovery:
+            await self._send_connection_notification(
+                f"Communicatie met {self.name} hersteld", recovered=True
+            )
 
     def _read_ranges(self, ranges: list[tuple[int, int]]) -> tuple[list[int], list[tuple[int, int]]]:
         """Read a list of (start, count) register ranges, retrying each up to MAX_READ_RETRIES times."""
@@ -482,12 +573,16 @@ class ComfoAirHub(DataUpdateCoordinator[dict]):
         else:
             data["flow_balance"] = None
 
-        supply_dewpoint = data.get("supply_dewpoint")
-        t_extract = data.get("304")
-        if supply_dewpoint is not None and t_extract is not None:
-            data["supply_condensation_alarm"] = supply_dewpoint >= (t_extract - self._dewpoint_delta)
+        # Lowest temperature that stays clear of condensation: the dew point of
+        # the indoor air (extract) plus the configured margin. The alarm itself is
+        # evaluated in _async_update_data, which can read the linked entity.
+        extract_dewpoint = data.get("extract_dewpoint")
+        if extract_dewpoint is not None:
+            raw_limit = round(extract_dewpoint + self._dewpoint_delta, 1)
         else:
-            data["supply_condensation_alarm"] = None
+            raw_limit = None
+        self._condensation_limit_raw = raw_limit
+        data["condensation_limit"] = self._rate_limited(raw_limit)
 
         self._last_successful_read = datetime.now()
         _LOGGER.debug("Finished reading realtime data")

@@ -12,117 +12,173 @@
     "config": {
         "step": {
             "user": {
-                "title": "ComfoAir WTW-unit toevoegen",
+                "title": "Add ComfoAir ventilation unit",
                 "data": {
-                    "name": "Naam voor de integratie",
-                    "device_id": "Modbus adres",
-                    "mode": "Verbindingstype"
+                    "name": "Name for the integration",
+                    "device_id": "Modbus address",
+                    "mode": "Connection type"
                 },
                 "data_description": {
-                    "name": "De naam die gebruikt wordt als prefix voor alle entiteiten",
-                    "device_id": "Modbus slave-adres van de WTW-unit (momenteel alleen adres 1 ondersteund)",
-                    "mode": "Kies of de WTW-unit via TCP/IP (Modbus TCP) of een seriële poort (Modbus RTU) wordt aangesproken"
+                    "name": "The name used as prefix for all entities",
+                    "device_id": "Modbus slave address of the ventilation unit (currently only address 1 is supported)",
+                    "mode": "Choose whether the ventilation unit is reached over TCP/IP (Modbus TCP) or a serial port (Modbus RTU)"
                 }
             },
             "tcp": {
-                "title": "TCP/IP-verbinding",
+                "title": "TCP/IP connection",
                 "data": {
-                    "host": "IP-adres van uw modbus RTU naar TCP/IP gateway",
-                    "port": "TCP-poort (standaard 502)",
-                    "scan_interval": "Polling interval in seconden"
+                    "host": "IP address of your modbus RTU to TCP/IP gateway",
+                    "port": "TCP port (default 502)",
+                    "scan_interval": "Polling interval in seconds"
                 },
                 "data_description": {
-                    "host": "Het IP-adres van uw modbus RTU naar TCP/IP gateway",
-                    "port": "De TCP-poort waarop de Modbus interface beschikbaar is",
-                    "scan_interval": "Hoe vaak de WTW-unit wordt uitgelezen (in seconden)"
+                    "host": "The IP address of your modbus RTU to TCP/IP gateway",
+                    "port": "The TCP port where the Modbus interface is available",
+                    "scan_interval": "How often the ventilation unit is polled (in seconds)"
                 }
             },
             "serial": {
-                "title": "Seriële verbinding",
+                "title": "Serial connection",
                 "data": {
-                    "device": "Seriële poort",
-                    "baudrate": "Baudrate",
-                    "bytesize": "Bytesize",
-                    "parity": "Pariteit",
-                    "stopbits": "Stopbits",
-                    "scan_interval": "Polling interval in seconden"
+                    "device": "Serial port",
+                    "baudrate": "Baud rate",
+                    "bytesize": "Byte size",
+                    "parity": "Parity",
+                    "stopbits": "Stop bits",
+                    "scan_interval": "Polling interval in seconds"
                 },
                 "data_description": {
-                    "device": "Het seriële poort-pad waarop de WTW-unit is aangesloten",
-                    "baudrate": "Baudrate voor de seriële verbinding (momenteel alleen 19200 ondersteund)",
-                    "bytesize": "Aantal databits per byte (momenteel alleen 8 ondersteund)",
-                    "parity": "Pariteitscontrole voor de seriële verbinding (momenteel alleen 'E' (even) ondersteund)",
-                    "stopbits": "Aantal stopbits (momenteel alleen 1 ondersteund)",
-                    "scan_interval": "Hoe vaak de WTW-unit wordt uitgelezen (in seconden)"
+                    "device": "The serial port path the ventilation unit is connected to",
+                    "baudrate": "Baud rate for the serial connection (currently only 19200 is supported)",
+                    "bytesize": "Number of data bits per byte (currently only 8 is supported)",
+                    "parity": "Parity for the serial connection (currently only 'E' (even) is supported)",
+                    "stopbits": "Number of stop bits (currently only 1 is supported)",
+                    "scan_interval": "How often the ventilation unit is polled (in seconds)"
                 }
             },
             "control_type": {
-                "title": "Besturingstype bypass/voorverwarming",
+                "title": "Bypass/preheater control type",
                 "data": {
-                    "control_type": "Besturingstype"
+                    "control_type": "Control type"
                 },
                 "data_description": {
-                    "control_type": "Hoe de bypass/voorverwarming wordt aangestuurd (analoog 0-10V, RF, of 3-standenschakelaar)"
+                    "control_type": "How the bypass/preheater is controlled (analog 0-10V, RF, or 3-way switch)"
                 }
             }
         },
         "error": {
-            "invalid_host": "Ongeldig IP-adres of hostnaam",
-            "invalid_port": "Ongeldige poort",
-            "invalid_serial_port": "Ongeldige seriële poort",
-            "already_configured": "Apparaat is al geconfigureerd"
+            "invalid_host": "Invalid IP address or hostname",
+            "invalid_port": "Invalid port",
+            "invalid_serial_port": "Invalid serial port",
+            "already_configured": "Device is already configured"
         },
         "abort": {
-            "already_configured": "Apparaat is al geconfigureerd"
+            "already_configured": "Device is already configured"
         }
     },
     "options": {
         "step": {
             "init": {
-                "title": "Configureer ComfoAir instellingen",
+                "title": "Configure ComfoAir settings",
                 "data": {
-                    "device_id": "Modbus adres",
-                    "device": "Seriële poort",
-                    "baudrate": "Baudrate",
-                    "bytesize": "Bytesize",
-                    "parity": "Pariteit",
-                    "stopbits": "Stopbits",
-                    "host": "IP-adres van uw modbus RTU naar TCP/IP gateway",
-                    "port": "TCP-poort (standaard 502)",
-                    "scan_interval": "Polling interval in seconden",
-                    "dewpoint_delta": "Dauwpunt marge (°C)",
-                    "notify_alarms_mobile": "Stuur notificaties voor alarmen",
-                    "notify_alarms_persistent": "Toon persistent notifications voor alarmen",
-                    "notify_alarms_services": "Notify services voor alarm meldingen",
-                    "alarm_notification_title": "Titel voor alarm meldingen",
-                    "alarm_delay": "Wachttijd alarmen (seconden)",
-                    "notify_connection_errors_mobile": "Stuur notificaties voor verbindingsfouten",
-                    "notify_connection_errors_persistent": "Toon persistent notifications voor verbindingsfouten",
-                    "notify_connection_errors_services": "Notify services voor verbindingsfouten",
-                    "connection_error_notification_title": "Titel voor verbindingsfouten",
-                    "connection_error_delay": "Wachttijd verbindingsfouten (seconden)"
+                    "device_id": "Modbus address",
+                    "device": "Serial port",
+                    "baudrate": "Baud rate",
+                    "bytesize": "Byte size",
+                    "parity": "Parity",
+                    "stopbits": "Stop bits",
+                    "host": "IP address of your modbus RTU to TCP/IP gateway",
+                    "port": "TCP port (default 502)",
+                    "scan_interval": "Polling interval in seconds",
+                    "dewpoint_delta": "Dew point margin (°C)",
+                    "condensation_source_entity": "Temperature entity for the condensation alarm",
+                    "condensation_max_change": "Maximum change of the condensation limit (°C per hour)"
                 },
                 "data_description": {
-                    "device_id": "Modbus slave-adres van de WTW-unit (momenteel alleen adres 1 ondersteund)",
-                    "device": "Het seriële poort-pad waarop de WTW-unit is aangesloten",
-                    "baudrate": "Baudrate voor de seriële verbinding (momenteel alleen 19200 ondersteund)",
-                    "bytesize": "Aantal databits per byte (momenteel alleen 8 ondersteund)",
-                    "parity": "Pariteitscontrole voor de seriële verbinding (momenteel alleen 'E' (even) ondersteund)",
-                    "stopbits": "Aantal stopbits (momenteel alleen 1 ondersteund)",
-                    "host": "Het IP-adres van uw modbus RTU naar TCP/IP gateway",
-                    "port": "De TCP-poort waarop de Modbus interface beschikbaar is",
-                    "scan_interval": "Hoe vaak de WTW-unit wordt uitgelezen (in seconden)",
-                    "dewpoint_delta": "Marge tussen het dauwpunt van de toevoerlucht en de extractietemperatuur waarbij het condensatie-alarm afgaat",
-                    "notify_alarms_mobile": "Stuur meldingen naar de onderstaande notify services",
-                    "notify_alarms_persistent": "Toon meldingen in de Home Assistant interface (persistent notifications)",
-                    "notify_alarms_services": "Voer notify service namen in gescheiden door komma's (bijv: mobile_app_iphone,mobile_app_tablet)",
-                    "alarm_notification_title": "De titel die wordt gebruikt voor alarm meldingen. Standaard: 'ComfoAir in storing!'",
-                    "alarm_delay": "Tijd (in seconden) wachten voordat een alarm melding wordt verstuurd. Voor filter warning en frost protection warning wordt de mobiele melding alleen tussen 07:00-23:00 verstuurd; buiten dat venster wordt hij vastgehouden tot 07:00",
-                    "notify_connection_errors_mobile": "Stuur meldingen naar de onderstaande notify services",
-                    "notify_connection_errors_persistent": "Toon meldingen in de Home Assistant interface (persistent notifications)",
-                    "notify_connection_errors_services": "Voer notify service namen in gescheiden door komma's (bijv: mobile_app_iphone,mobile_app_tablet)",
-                    "connection_error_notification_title": "De titel die wordt gebruikt voor verbindingsfout meldingen. Standaard: 'ComfoAir verbindingsfout!'",
-                    "connection_error_delay": "Tijd (in seconden) wachten voordat een verbindingsfout melding wordt verstuurd"
+                    "device_id": "Modbus slave address of the ventilation unit (currently only address 1 is supported)",
+                    "device": "The serial port path the ventilation unit is connected to",
+                    "baudrate": "Baud rate for the serial connection (currently only 19200 is supported)",
+                    "bytesize": "Number of data bits per byte (currently only 8 is supported)",
+                    "parity": "Parity for the serial connection (currently only 'E' (even) is supported)",
+                    "stopbits": "Number of stop bits (currently only 1 is supported)",
+                    "host": "The IP address of your modbus RTU to TCP/IP gateway",
+                    "port": "The TCP port where the Modbus interface is available",
+                    "scan_interval": "How often the ventilation unit is polled (in seconds)",
+                    "dewpoint_delta": "Safety margin above the indoor dew point. The 'condensation limit' sensor reports the indoor dew point plus this margin: the lowest temperature that stays clear of condensation.",
+                    "condensation_source_entity": "Optional. Pick the entity holding the flow temperature of your underfloor heating or cooling. The condensation alarm goes off as soon as that temperature drops to or below the condensation limit. Leave empty to only use the 'condensation limit' sensor in your own automations.",
+                    "condensation_max_change": "Keeps the 'condensation limit' sensor calm enough to feed to a heat pump as a setpoint. Showering raises the indoor humidity sharply for a couple of hours; this limits how fast the sensor may follow, so such a peak is flattened while slow changes still come through. 0 disables the limit. The condensation alarm always uses the unlimited value."
+                },
+                "sections": {
+                    "general": {
+                        "name": "General",
+                        "description": "Channels and options shared by every notification.",
+                        "data": {
+                            "notify_persistent": "Persistent notifications"
+                        },
+                        "data_description": {
+                            "notify_persistent": "Also show notifications as persistent notifications in the Home Assistant interface."
+                        }
+                    },
+                    "connection": {
+                        "name": "Connection errors",
+                        "description": "Notifications when the Modbus connection to the ventilation unit is lost.",
+                        "data": {
+                            "notify_connection_errors_mobile": "Notify on connection errors",
+                            "connection_notify_recovery": "Notify on recovery",
+                            "notify_connection_errors_services": "Mobile notify services",
+                            "connection_error_notification_title": "Notification subject",
+                            "connection_error_delay": "Delay before notifying (seconds)",
+                            "connection_quiet_hours_enabled": "Enable quiet hours",
+                            "connection_quiet_hours_start": "Quiet hours start",
+                            "connection_quiet_hours_end": "Quiet hours end"
+                        },
+                        "data_description": {
+                            "connection_notify_recovery": "Send a notification once the connection is restored.",
+                            "notify_connection_errors_services": "Mobile services that receive connection notifications only.",
+                            "connection_error_delay": "How long the connection must be lost before a notification is sent.",
+                            "connection_quiet_hours_enabled": "During quiet hours, mobile notifications are held and delivered once the period ends. Persistent notifications are never held."
+                        }
+                    },
+                    "alarm": {
+                        "name": "Alarms",
+                        "description": "Notifications for faults of the ventilation unit, such as a sensor, fan or preheater error.",
+                        "data": {
+                            "notify_alarms_mobile": "Notify on alarms",
+                            "alarm_notify_recovery": "Notify on recovery",
+                            "notify_alarms_services": "Mobile notify services",
+                            "alarm_notification_title": "Notification subject",
+                            "alarm_delay": "Confirmation delay (seconds)",
+                            "alarm_quiet_hours_enabled": "Enable quiet hours",
+                            "alarm_quiet_hours_start": "Quiet hours start",
+                            "alarm_quiet_hours_end": "Quiet hours end"
+                        },
+                        "data_description": {
+                            "alarm_notify_recovery": "Send a notification once the alarm has cleared.",
+                            "notify_alarms_services": "Mobile services that receive alarm notifications only.",
+                            "alarm_delay": "An alarm is re-checked after this delay before a notification is sent; this avoids notifications for short-lived alarms.",
+                            "alarm_quiet_hours_enabled": "During quiet hours, mobile alarm notifications are held and delivered once the period ends. Persistent notifications are never held."
+                        }
+                    },
+                    "warning": {
+                        "name": "Warnings",
+                        "description": "Notifications for the filter warning and the frost protection warning.",
+                        "data": {
+                            "notify_warnings_mobile": "Notify on warnings",
+                            "warning_notify_recovery": "Notify on recovery",
+                            "notify_warnings_services": "Mobile notify services",
+                            "warning_notification_title": "Notification subject",
+                            "warning_delay": "Confirmation delay (seconds)",
+                            "warning_quiet_hours_enabled": "Enable quiet hours",
+                            "warning_quiet_hours_start": "Quiet hours start",
+                            "warning_quiet_hours_end": "Quiet hours end"
+                        },
+                        "data_description": {
+                            "warning_notify_recovery": "Send a notification once the warning has cleared.",
+                            "notify_warnings_services": "Mobile services that receive warning notifications only.",
+                            "warning_delay": "A warning is re-checked after this delay before a notification is sent; this avoids notifications for short-lived warnings.",
+                            "warning_quiet_hours_enabled": "During quiet hours, mobile warning notifications are held and delivered once the period ends. Persistent notifications are never held."
+                        }
+                    }
                 }
             }
         }

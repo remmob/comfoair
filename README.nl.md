@@ -1,6 +1,8 @@
 [![en](https://img.shields.io/badge/lang-en-red.svg)](README.md)
 [![nl](https://img.shields.io/badge/lang-nl-orange.svg)](README.nl.md)
 
+![Version](https://img.shields.io/github/v/release/remmob/comfoair 'Release') ![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg 'Default Home') ![HA min](https://img.shields.io/badge/Home%20Assistant-2025.12%2B-41BDF5.svg 'Minimum Home Assistant version') [![total issues](https://img.shields.io/github/issues/remmob/comfoair 'Total issues')](https://github.com/remmob/comfoair/issues) ![Stars](https://img.shields.io/github/stars/remmob/comfoair)
+
 # Zehnder ComfoAir E300/E400 Home Assistant Integratie
 
 Een Home Assistant custom integratie voor de Zehnder ComfoAir E300/E400 WTW-unit via Modbus (RTU of TCP), met een uitgebreide set sensoren, alarmbewaking en instelbare notificaties.
@@ -12,31 +14,42 @@ Een Home Assistant custom integratie voor de Zehnder ComfoAir E300/E400 WTW-unit
 - Modbus RTU (serieel) en Modbus TCP, volledig instelbaar via de Home Assistant UI (geen YAML nodig).
 - 40+ sensoren: temperaturen, luchtvochtigheden, ventilatorsnelheden, luchtstromen, bypasspositie, snelheidsinstellingen, looptijdtellers en meer.
 - Berekende comfortsensoren: absolute vochtigheid, enthalpie, dauwpunt (per luchtstroom) en warmteterugwinrendement.
-- Binaire sensoren voor elk alarm-/waarschuwingsbit dat de unit rapporteert (sensorstoringen, filterwaarschuwing/-storing, voorverwarmerstoringen, bypassmotorstoringen, vorstbeveiliging), plus een condensatiealarm op de toevoerlucht op basis van het dauwpunt.
-- Optionele push- en/of persistent notifications voor alarmen en voor verbindingsfouten, met instelbare wachttijd en een stille periode (07:00-23:00) voor niet-urgente waarschuwingen.
+- Binaire sensoren voor elk alarm-/waarschuwingsbit dat de unit rapporteert (sensorstoringen, filterwaarschuwing/-storing, voorverwarmerstoringen, bypassmotorstoringen, vorstbeveiliging).
+- **Condensatiegrens-sensor en condensatie-alarm**: de laagste temperatuur die binnen nog veilig is tegen condensatie, direct bruikbaar als gewenste waarde voor vloerkoeling of een warmtepomp, met een optioneel alarm op een zelfgekozen temperatuur-entity.
+- **Meldingen per categorie met stille uren**: verbindingsfouten, alarmen en waarschuwingen hebben elk hun eigen mobiele notify services, onderwerp, wachttijd, herstelmelding en stille periode, als push- en/of permanente melding.
 - Volledig herconfigureerbaar achteraf via het instellingenscherm van de integratie - de integratie hoeft niet verwijderd en opnieuw toegevoegd te worden om instellingen te wijzigen.
+- Nederlandse en Engelse vertaling van de UI.
 
-## Installatie
+## 📦 Installatie
 
-### HACS Custom Repository
+### HACS (standaard store)
 
-1. Open HACS in Home Assistant.
+Zehnder ComfoAir is beschikbaar in de standaard store van [HACS](https://hacs.xyz).
+
+[![Open je Home Assistant en open een repository in de Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=remmob&repository=comfoair&category=integration)
+
+1. Open **HACS** in Home Assistant.
+2. Zoek op **Zehnder ComfoAir** en open het resultaat (of gebruik de knop hierboven).
+3. Klik op **Downloaden**.
+4. **Herstart Home Assistant**.
+
+### HACS (custom repository)
+
+1. Open **HACS** in Home Assistant.
 2. Klik op het menu met de drie puntjes (⋮) rechtsboven.
-3. Kies 'Custom repositories'.
+3. Kies **Custom repositories**.
 4. Voeg deze repository-URL toe: `https://github.com/remmob/comfoair`.
-5. Zet de categorie op **Integration**.
-6. Klik op 'Add' om op te slaan.
+5. Zet de categorie op **Integration** en klik op **Add**.
+6. Zoek op **Zehnder ComfoAir** en download het.
+7. **Herstart Home Assistant**.
 
 Zie de [officiële HACS documentatie](https://hacs.xyz/docs/faq/custom_repositories/) voor meer details.
 
 ### Handmatig
 
-1. Download of kopieer de map `comfoair` uit deze repository:
-	[`custom_components/comfoair`](../comfoair)
-2. Plaats deze map in je Home Assistant installatie onder:
-	`config/custom_components/comfoair`
-3. Herstart Home Assistant.
-4. Voeg de integratie toe via het Integraties-scherm in de Home Assistant UI.
+1. Download of kopieer de map `comfoair` uit deze repository: [`custom_components/comfoair`](custom_components/comfoair)
+2. Plaats deze map in je Home Assistant installatie onder: `config/custom_components/comfoair`
+3. **Herstart Home Assistant**.
 
 Meer info en updates:
 - [GitHub: remmob/comfoair](https://github.com/remmob/comfoair)
@@ -86,15 +99,44 @@ Alle instellingen kunnen na het instellen worden gewijzigd, zonder de integratie
 
 ![Integratie-item](Images/edit-entry-en.png)
 
-Dit opent het instellingenscherm, waar je de verbindingsgegevens, het poll-interval, de dauwpunt marge voor het condensatie-alarm, en het notificatiegedrag voor alarmen en verbindingsfouten kunt aanpassen.
+Dit opent het instellingenscherm, waar je de verbindingsgegevens, het poll-interval, de condensatie-instellingen en het meldingsgedrag kunt aanpassen.
 
 ![Instellingen, deel 1](Images/edit-1-nl.png)
 ![Instellingen, deel 2](Images/edit-2-nl.png)
 
-- **Dauwpunt marge**: hoe dicht het dauwpunt van de toevoerlucht bij de extractietemperatuur mag komen voordat het condensatie-alarm afgaat.
-- **Alarm meldingen**: stuur optioneel een mobiele pushmelding en/of een persistent notification zodra een alarm-/waarschuwingsbit actief wordt, na een instelbare wachttijd. Filterwaarschuwing en vorstbeveiligingswaarschuwing (niet-urgent) worden alleen tussen 07:00-23:00 gepusht; buiten dat venster worden ze vastgehouden en om 07:00 alsnog verstuurd.
-- **Verbindingsfout meldingen**: hetzelfde mechanisme, geactiveerd zodra de unit niet meer bereikbaar is via Modbus.
-- Notify services kun je kiezen uit je geconfigureerde `notify.mobile_app_*` services, of handmatig invoeren als een door komma's gescheiden lijst.
+*ℹ️ De schermafbeeldingen hierboven tonen nog het oudere instellingenscherm; de meldingsopties staan nu in de uitklapbare secties die hieronder beschreven zijn.*
+
+### Condensatie
+
+- **Dauwpunt marge**: veiligheidsmarge boven het dauwpunt binnen. De sensor **condensation limit** geeft het binnendauwpunt plus deze marge: de laagste temperatuur die nog veilig is tegen condensatie.
+- **Temperatuur-entity voor het condensatie-alarm** *(optioneel)*: kies de entity met de aanvoertemperatuur van je vloerverwarming of -koeling. De binaire sensor **condensation alarm** gaat af zodra die temperatuur op of onder de condensatiegrens komt. Leeg laten als je alleen de condensatiegrens-sensor in je eigen automatiseringen wilt gebruiken.
+- **Maximale verandering van de condensatiegrens (°C per uur)**: houdt de condensatiegrens-sensor rustig genoeg om als gewenste waarde aan een warmtepomp te geven. Douchen jaagt de luchtvochtigheid binnen kort omhoog en het duurt uren voor die weer zakt; dit begrenst hoe snel de sensor mag volgen, zodat zo'n piek wordt afgevlakt terwijl langzame veranderingen wel meekomen. `0` zet de begrenzing uit. Het condensatie-alarm gebruikt altijd de onbegrensde waarde.
+
+### Meldingen
+
+De meldingen staan in uitklapbare secties, één per categorie. Elke categorie stel je
+apart in, zodat een filterwaarschuwing naar een andere telefoon kan gaan dan een
+verbindingsfout - of naar niemand.
+
+- **Algemeen**: de gedeelde schakelaar voor permanente meldingen (zichtbaar in de Home Assistant-interface).
+- **Verbindingsfouten**: de Modbus-verbinding met de unit is weggevallen.
+- **Alarmen**: storingen van de WTW-unit, zoals een sensor-, ventilator- of voorverwarmerfout.
+- **Waarschuwingen**: de filterwaarschuwing en de vorstbeveiligingswaarschuwing.
+
+Elke categorie heeft een eigen:
+
+| Optie | Wat het doet |
+|-------|--------------|
+| Melden bij ... | Mobiele pushmeldingen voor deze categorie versturen |
+| Melden bij herstel | Een vervolgmelding zodra het alarm/de waarschuwing weg is of de verbinding terug is |
+| Mobiele notify services | De `notify.mobile_app_*` services voor deze categorie, te kiezen uit een lijst of in te voeren als door komma's gescheiden lijst |
+| Onderwerp van de melding | De titel die voor deze categorie wordt gebruikt |
+| Wachttijd (seconden) | Na deze wachttijd wordt opnieuw gecontroleerd voordat er gemeld wordt, wat kortstondige alarmen onderdrukt |
+| Stille uren | Mobiele meldingen worden tussen een begin- en eindtijd vastgehouden en daarna alsnog bezorgd. Permanente meldingen worden nooit vastgehouden |
+
+De stille uren voor waarschuwingen staan standaard op **23:00-07:00**, zodat de filter- en
+vorstbeveiligingswaarschuwing niemand 's nachts wakker maken - hetzelfde gedrag als
+voorheen, nu instelbaar. Voor verbindingsfouten en alarmen staan de stille uren standaard **uit**.
 
 De apparaatpagina toont de apparaatinfo, alle sensoren en de recente alarm-/waarschuwingsactiviteit:
 
@@ -180,14 +222,15 @@ De apparaatpagina toont de apparaatinfo, alle sensoren en de recente alarm-/waar
 | 402      | 4   | Bypassmotor buitenlucht          |
 | 402      | 5   | Vorstbeveiligingswaarschuwing     |
 
-Elk bit wordt als eigen binaire sensor beschikbaar gesteld. "Filterwaarschuwing" en "Vorstbeveiligingswaarschuwing" gelden als niet-urgente waarschuwingen en vallen onder het meldingsvenster van 07:00-23:00 hierboven beschreven; alle overige bits gelden als alarm.
+Elk bit wordt als eigen binaire sensor beschikbaar gesteld. "Filterwaarschuwing" en "Vorstbeveiligingswaarschuwing" vallen onder de meldingscategorie **Waarschuwingen** (stille uren standaard 23:00-07:00); alle overige bits vallen onder de categorie **Alarmen**.
 
 ### Berekende sensoren
 
 Dit zijn geen ruwe Modbus-registers, maar worden afgeleid van de temperatuur-/vochtigheidsregisters hierboven:
 
 - **Absolute vochtigheid** (kg/kg) en **enthalpie** (kJ/kg) voor de inlaat-, toevoer-, afzuig- en uitblaasluchtstroom.
-- **Dauwpunt** (°C) voor de inlaat-, toevoer-, afzuig- en uitblaasluchtstroom, onder andere gebruikt voor het condensatiealarm op de toevoerlucht.
+- **Dauwpunt** (°C) voor de inlaat-, toevoer-, afzuig- en uitblaasluchtstroom.
+- **Condensatiegrens** (°C): het dauwpunt binnen (afzuiglucht) plus de ingestelde dauwpunt marge - de laagste temperatuur die nog veilig is tegen condensatie. Optioneel begrensd in snelheid, zodat je hem direct als gewenste waarde voor vloerkoeling of een warmtepomp kunt gebruiken.
 - **Warmteterugwinrendement** (%), gebaseerd op toevoer- en afzuigluchttemperatuur.
 - **Luchtstroombalans** (m³/h), het verschil tussen toevoer- en afzuigluchtstroom.
 

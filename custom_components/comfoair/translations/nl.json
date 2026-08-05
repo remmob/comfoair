@@ -91,16 +91,8 @@
                     "port": "TCP-poort (standaard 502)",
                     "scan_interval": "Polling interval in seconden",
                     "dewpoint_delta": "Dauwpunt marge (°C)",
-                    "notify_alarms_mobile": "Stuur notificaties voor alarmen",
-                    "notify_alarms_persistent": "Toon persistent notifications voor alarmen",
-                    "notify_alarms_services": "Notify services voor alarm meldingen",
-                    "alarm_notification_title": "Titel voor alarm meldingen",
-                    "alarm_delay": "Wachttijd alarmen (seconden)",
-                    "notify_connection_errors_mobile": "Stuur notificaties voor verbindingsfouten",
-                    "notify_connection_errors_persistent": "Toon persistent notifications voor verbindingsfouten",
-                    "notify_connection_errors_services": "Notify services voor verbindingsfouten",
-                    "connection_error_notification_title": "Titel voor verbindingsfouten",
-                    "connection_error_delay": "Wachttijd verbindingsfouten (seconden)"
+                    "condensation_source_entity": "Temperatuur-entity voor het condensatie-alarm",
+                    "condensation_max_change": "Maximale verandering van de condensatiegrens (°C per uur)"
                 },
                 "data_description": {
                     "device_id": "Modbus slave-adres van de WTW-unit (momenteel alleen adres 1 ondersteund)",
@@ -112,17 +104,81 @@
                     "host": "Het IP-adres van uw modbus RTU naar TCP/IP gateway",
                     "port": "De TCP-poort waarop de Modbus interface beschikbaar is",
                     "scan_interval": "Hoe vaak de WTW-unit wordt uitgelezen (in seconden)",
-                    "dewpoint_delta": "Marge tussen het dauwpunt van de toevoerlucht en de extractietemperatuur waarbij het condensatie-alarm afgaat",
-                    "notify_alarms_mobile": "Stuur meldingen naar de onderstaande notify services",
-                    "notify_alarms_persistent": "Toon meldingen in de Home Assistant interface (persistent notifications)",
-                    "notify_alarms_services": "Voer notify service namen in gescheiden door komma's (bijv: mobile_app_iphone,mobile_app_tablet)",
-                    "alarm_notification_title": "De titel die wordt gebruikt voor alarm meldingen. Standaard: 'ComfoAir in storing!'",
-                    "alarm_delay": "Tijd (in seconden) wachten voordat een alarm melding wordt verstuurd. Voor filter warning en frost protection warning wordt de mobiele melding alleen tussen 07:00-23:00 verstuurd; buiten dat venster wordt hij vastgehouden tot 07:00",
-                    "notify_connection_errors_mobile": "Stuur meldingen naar de onderstaande notify services",
-                    "notify_connection_errors_persistent": "Toon meldingen in de Home Assistant interface (persistent notifications)",
-                    "notify_connection_errors_services": "Voer notify service namen in gescheiden door komma's (bijv: mobile_app_iphone,mobile_app_tablet)",
-                    "connection_error_notification_title": "De titel die wordt gebruikt voor verbindingsfout meldingen. Standaard: 'ComfoAir verbindingsfout!'",
-                    "connection_error_delay": "Tijd (in seconden) wachten voordat een verbindingsfout melding wordt verstuurd"
+                    "dewpoint_delta": "Veiligheidsmarge boven het dauwpunt binnen. De sensor 'condensation limit' geeft het binnendauwpunt plus deze marge: de laagste temperatuur die nog veilig is tegen condensatie.",
+                    "condensation_source_entity": "Optioneel. Kies de entity met de aanvoertemperatuur van je vloerverwarming of -koeling. Het condensatie-alarm gaat af zodra die temperatuur op of onder de condensatiegrens komt. Leeg laten als je alleen de sensor 'condensation limit' in je eigen automatiseringen wilt gebruiken.",
+                    "condensation_max_change": "Houdt de sensor 'condensation limit' rustig genoeg om als gewenste waarde aan een warmtepomp te geven. Douchen jaagt de luchtvochtigheid binnen kort omhoog en het duurt uren voor die weer zakt; dit begrenst hoe snel de sensor mag volgen, zodat zo'n piek wordt afgevlakt terwijl langzame veranderingen wel meekomen. 0 zet de begrenzing uit. Het condensatie-alarm gebruikt altijd de onbegrensde waarde."
+                },
+                "sections": {
+                    "general": {
+                        "name": "Algemeen",
+                        "description": "Kanalen en opties die voor alle meldingen gelden.",
+                        "data": {
+                            "notify_persistent": "Permanente meldingen"
+                        },
+                        "data_description": {
+                            "notify_persistent": "Toon meldingen ook als permanente melding in de Home Assistant-interface."
+                        }
+                    },
+                    "connection": {
+                        "name": "Verbindingsfouten",
+                        "description": "Meldingen wanneer de Modbus-verbinding met de WTW-unit wegvalt.",
+                        "data": {
+                            "notify_connection_errors_mobile": "Melden bij verbindingsfouten",
+                            "connection_notify_recovery": "Melden bij herstel",
+                            "notify_connection_errors_services": "Mobiele notify-services",
+                            "connection_error_notification_title": "Meldingsonderwerp",
+                            "connection_error_delay": "Vertraging voordat gemeld wordt (seconden)",
+                            "connection_quiet_hours_enabled": "Stille uren inschakelen",
+                            "connection_quiet_hours_start": "Start stille uren",
+                            "connection_quiet_hours_end": "Einde stille uren"
+                        },
+                        "data_description": {
+                            "connection_notify_recovery": "Stuur een melding zodra de verbinding is hersteld.",
+                            "notify_connection_errors_services": "Mobiele services die alleen verbindingsmeldingen ontvangen.",
+                            "connection_error_delay": "Hoe lang de verbinding weg moet zijn voordat een melding wordt verstuurd.",
+                            "connection_quiet_hours_enabled": "Tijdens de stille uren worden mobiele meldingen vastgehouden en pas afgeleverd zodra de periode voorbij is. Permanente meldingen worden nooit vastgehouden."
+                        }
+                    },
+                    "alarm": {
+                        "name": "Alarmen",
+                        "description": "Meldingen voor storingen van de WTW-unit, zoals een sensor-, ventilator- of voorverwarmingsfout.",
+                        "data": {
+                            "notify_alarms_mobile": "Melden bij alarmen",
+                            "alarm_notify_recovery": "Melden bij herstel",
+                            "notify_alarms_services": "Mobiele notify-services",
+                            "alarm_notification_title": "Meldingsonderwerp",
+                            "alarm_delay": "Bevestigingsvertraging (seconden)",
+                            "alarm_quiet_hours_enabled": "Stille uren inschakelen",
+                            "alarm_quiet_hours_start": "Start stille uren",
+                            "alarm_quiet_hours_end": "Einde stille uren"
+                        },
+                        "data_description": {
+                            "alarm_notify_recovery": "Stuur een melding zodra het alarm is verdwenen.",
+                            "notify_alarms_services": "Mobiele services die alleen alarmmeldingen ontvangen.",
+                            "alarm_delay": "Een alarm wordt na deze vertraging opnieuw gecontroleerd voordat een melding wordt verstuurd; dit voorkomt meldingen bij kortstondige alarmen.",
+                            "alarm_quiet_hours_enabled": "Tijdens de stille uren worden mobiele alarmmeldingen vastgehouden en pas afgeleverd zodra de periode voorbij is. Permanente meldingen worden nooit vastgehouden."
+                        }
+                    },
+                    "warning": {
+                        "name": "Waarschuwingen",
+                        "description": "Meldingen voor de filterwaarschuwing en de vorstbeveiligingswaarschuwing.",
+                        "data": {
+                            "notify_warnings_mobile": "Melden bij waarschuwingen",
+                            "warning_notify_recovery": "Melden bij herstel",
+                            "notify_warnings_services": "Mobiele notify-services",
+                            "warning_notification_title": "Meldingsonderwerp",
+                            "warning_delay": "Bevestigingsvertraging (seconden)",
+                            "warning_quiet_hours_enabled": "Stille uren inschakelen",
+                            "warning_quiet_hours_start": "Start stille uren",
+                            "warning_quiet_hours_end": "Einde stille uren"
+                        },
+                        "data_description": {
+                            "warning_notify_recovery": "Stuur een melding zodra de waarschuwing is verdwenen.",
+                            "notify_warnings_services": "Mobiele services die alleen waarschuwingsmeldingen ontvangen.",
+                            "warning_delay": "Een waarschuwing wordt na deze vertraging opnieuw gecontroleerd voordat een melding wordt verstuurd; dit voorkomt meldingen bij kortstondige waarschuwingen.",
+                            "warning_quiet_hours_enabled": "Tijdens de stille uren worden mobiele waarschuwingsmeldingen vastgehouden en pas afgeleverd zodra de periode voorbij is. Permanente meldingen worden nooit vastgehouden. Standaard aan van 23:00 tot 07:00."
+                        }
+                    }
                 }
             }
         }
