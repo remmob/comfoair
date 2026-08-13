@@ -91,7 +91,9 @@ Voor een **TCP**-verbinding geef je het IP-adres en de poort van je Modbus TCP-g
 
 ![TCP/IP-verbinding](Images/tcp-nl.png)
 
-De laatste stap is het selecteren van het besturingstype van de bypass/voorverwarming: analoog (0-10V), RF, of 3-standenschakelaar. Dit bepaalt welke registers actief zijn; registers voor de andere besturingstypen blijven beschikbaar maar inactief. Je kunt dit later wijzigen via de instellingen van de integratie.
+De laatste stap is het selecteren van het besturingstype van de bypass/voorverwarming: analoog (0-10V), RF, of 3-standenschakelaar. Dit bepaalt welke sensoren standaard aan staan; de andere besturingstypen blijven beschikbaar maar uitgeschakeld. Je kunt dit later wijzigen via de instellingen van de integratie.
+
+Alle registers worden uitgelezen, ongeacht het gekozen besturingstype. Wordt je unit door meerdere ingangen aangestuurd — bijvoorbeeld een 0-10V-signaal én een 3-standenschakelaar — dan kun je de andere besturingssensoren zelf inschakelen bij de entiteiten van het apparaat; ze geven gewoon geldige waarden. Zodra je er zelf één in- of uitschakelt laat de integratie hem met rust: ook bij het later wijzigen van het besturingstype blijft jouw keuze staan.
 
 ## De integratie configureren
 

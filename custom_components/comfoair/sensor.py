@@ -51,6 +51,15 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
         )
     async_add_entities(entities)
 
+    # Enable the control sensors that belong to the selected control type, but
+    # only those this integration disabled itself. Every register is polled
+    # regardless of the selected type, so a sensor the user enables by hand
+    # reports valid values and there is no reason to hide it again.
+    #
+    # Re-disabling on every setup used to undo that choice: enabling the entity
+    # makes Home Assistant reload the config entry, this loop then disabled it
+    # again, and that registry write triggered yet another reload - briefly
+    # taking every entity of this hub unavailable.
     entity_registry = er.async_get(hass)
     for sensor_key in CONTROL_TYPE_SENSOR_KEYS:
         unique_id = f"{hub_name}_{sensor_key}"
@@ -58,13 +67,17 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
         if entity_id is None:
             continue
 
+        registry_entry = entity_registry.async_get(entity_id)
+        if registry_entry is None:
+            continue
+
+        # Anything the user enabled (disabled_by is None) or disabled by hand
+        # (RegistryEntryDisabler.USER) stays exactly as they set it.
+        if registry_entry.disabled_by is not RegistryEntryDisabler.INTEGRATION:
+            continue
+
         if sensor_key in active_control_sensor_keys:
             entity_registry.async_update_entity(entity_id, disabled_by=None)
-        else:
-            entity_registry.async_update_entity(
-                entity_id,
-                disabled_by=RegistryEntryDisabler.INTEGRATION,
-            )
 
 
 class ComfoAirSensor(CoordinatorEntity, SensorEntity):

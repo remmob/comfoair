@@ -91,7 +91,9 @@ For a **TCP** connection, provide the IP address and port of your Modbus TCP gat
 
 ![TCP/IP connection](Images/tcp-en.png)
 
-The last step is to select how the bypass/pre-heater is controlled: analog (0-10V), RF, or 3-way switch. This determines which registers are active; registers for the other control types stay available but inactive. You can change this later from the integration's settings.
+The last step is to select how the bypass/pre-heater is controlled: analog (0-10V), RF, or 3-way switch. This determines which sensors are enabled by default; the other control types stay available but disabled. You can change this later from the integration's settings.
+
+Every register is polled regardless of the selected control type, so if your unit is driven by more than one input — a 0-10V signal and a 3-way switch, say — you can enable the other control sensors yourself under the device's entity list and they will report valid values. Once you enable or disable one of them by hand, the integration leaves it alone: switching the control type later will not override your choice.
 
 ## Configuring the Integration
 
