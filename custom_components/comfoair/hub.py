@@ -2,39 +2,42 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
-import threading
 import time
 from datetime import datetime, timedelta
 
-from pymodbus.client import ModbusSerialClient, ModbusTcpClient
-from pymodbus.exceptions import ConnectionException, ModbusIOException
+from modbus_connection import ModbusError, ModbusTimeoutError, ModbusUnit
+from modbus_connection.model import ManualComponent
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (
+    ALARM_BITS,
     BOOLEAN_REGISTERS,
     DEFAULT_CONNECTION_ERROR_NOTIFICATION_TITLE,
     ENUM_REGISTERS,
     FIRMWARE_REGISTER,
-    MODE_SERIAL,
     ON_OFF_STATUS,
-    ALARM_BITS,
-    READ_RANGES,
-    STATIC_READ_RANGES,
     SENSOR_TYPES,
     alarm_data_key,
 )
+from .device import build_realtime_component, build_static_component
 from .notifications import QuietHours, parse_services, send_mobile, send_persistent
 
 _LOGGER = logging.getLogger(__name__)
 
 MAX_READ_RETRIES = 3
 
+# This many consecutive timeouts means a stuck link: the socket is still open
+# but the device behind it has stopped responding, so automatic reconnection
+# has nothing to reconnect. See read_modbus_realtime_data() below.
+STUCK_LINK_TIMEOUTS = 3
+
 
 class ComfoAirHub(DataUpdateCoordinator[dict]):
-    """Thread safe wrapper class for pymodbus."""
+    """Coordinator that polls the ComfoAir over a Modbus unit."""
 
     @staticmethod
     def _calc_absolute_humidity(temp_c: float, rh_percent: float) -> float | None:
@@ -82,16 +85,8 @@ class ComfoAirHub(DataUpdateCoordinator[dict]):
         self,
         hass,
         name: str,
+        unit: ModbusUnit,
         scan_interval: int,
-        mode: str,
-        device_id: int,
-        host: str | None = None,
-        port: int | None = None,
-        device: str | None = None,
-        baudrate: int | None = None,
-        bytesize: int | None = None,
-        parity: str | None = None,
-        stopbits: int | None = None,
         dewpoint_delta: float = 1.0,
         condensation_source: str = "",
         condensation_max_change: float = 0.0,
@@ -106,15 +101,6 @@ class ComfoAirHub(DataUpdateCoordinator[dict]):
         connection_quiet_end=None,
     ) -> None:
         super().__init__(hass, _LOGGER, name=name, update_interval=timedelta(seconds=scan_interval))
-        self._mode = mode
-        self._unit = int(device_id)
-        self._host = host
-        self._port = int(port) if port is not None else None
-        self._device = device
-        self._baudrate = int(baudrate) if baudrate is not None else None
-        self._bytesize = int(bytesize) if bytesize is not None else None
-        self._parity = parity
-        self._stopbits = int(stopbits) if stopbits is not None else None
         self._dewpoint_delta = float(dewpoint_delta)
         self._condensation_source = condensation_source or ""
         self._condensation_max_change = max(0.0, float(condensation_max_change))
@@ -122,18 +108,21 @@ class ComfoAirHub(DataUpdateCoordinator[dict]):
         self._limit_value: float | None = None
         self._limit_updated: float | None = None
 
-        self._client = None
-        self._lock = threading.Lock()
-        self._modbus_lock = threading.Lock()
-        self._consecutive_failures = 0
+        self._unit = unit
+        self._realtime: ManualComponent = build_realtime_component(unit)
+        self._static: ManualComponent = build_static_component(unit)
         self._static_data: dict = {}
-        self._last_successful_read = None
+        # Number of consecutive polls that ended in a timeout. See
+        # read_modbus_realtime_data() for where this resets and what happens
+        # when the counter fills up.
+        self._consecutive_timeouts = 0
 
         self._notify_connection_errors_mobile = notify_connection_errors_mobile
         self._notify_connection_errors_persistent = notify_connection_errors_persistent
         self._notify_recovery = notify_recovery
         self._notify_services = parse_services(notify_services)
         self._connection_error_notification_title = connection_error_notification_title
+        self._consecutive_failures = 0
         self._connection_error_notified = False
         self._connection_lost_time = None
         self._failures_for_delay = max(1, int(connection_error_delay / scan_interval))
@@ -159,120 +148,55 @@ class ComfoAirHub(DataUpdateCoordinator[dict]):
             hass.data[storage_key] = {"realtime_data": {}}
         self.data_store = hass.data[storage_key]
 
-        self._client = self._create_client()
-
-    def _create_client(self):
-        if self._mode == MODE_SERIAL:
-            _LOGGER.debug(
-                "Modbus client initialized for %s (baudrate=%s, bytesize=%s, parity=%s, stopbits=%s)",
-                self._device,
-                self._baudrate,
-                self._bytesize,
-                self._parity,
-                self._stopbits,
-            )
-            return ModbusSerialClient(
-                port=self._device,
-                baudrate=self._baudrate,
-                bytesize=self._bytesize,
-                parity=self._parity,
-                stopbits=self._stopbits,
-                timeout=3,
-            )
-        _LOGGER.debug("Modbus client initialized for %s:%s", self._host, self._port)
-        return ModbusTcpClient(host=self._host, port=self._port, timeout=3)
-
-    def _reset_client(self) -> None:
-        """Close the current Modbus client, if any, so the next read reconnects."""
-        if self._client is not None:
-            try:
-                self._client.close()
-            except Exception:
-                pass
-            self._client = None
-
     def start_notifications(self) -> None:
         """Start the quiet-hours release trigger for connection notifications."""
         self._quiet.start()
 
     def close(self) -> None:
-        """Disconnect client."""
+        """Stop the quiet-hours trigger.
+
+        The Modbus connection itself is not ours to close: connection.py
+        registered its own teardown (entry.async_on_unload) when the unit was
+        set up, whether that is Home Assistant's shared connection or one we
+        opened ourselves.
+        """
         self._quiet.stop()
-        try:
-            with self._lock:
-                self._reset_client()
-            _LOGGER.debug("Modbus client connection closed")
-        except Exception as err:
-            _LOGGER.exception("Error closing Modbus connection: %s", err)
 
-    def _read_holding_registers(self, address: int, count: int):
-        """Safely read holding registers with reconnect logic."""
-        try:
-            if self._client is None or not self._client.connected:
-                _LOGGER.debug("Modbus client not connected, attempting reconnect...")
-                self._reset_client()
-                self._client = self._create_client()
-                if not self._client.connect():
-                    _LOGGER.error("Modbus reconnect failed")
-                    return None
+    async def _update_component_with_retry(self, component: ManualComponent, label: str) -> None:
+        """Update a component, retrying failures up to MAX_READ_RETRIES times.
 
-            with self._modbus_lock:
-                response = self._client.read_holding_registers(
-                    address=address,
-                    count=count,
-                    device_id=self._unit,
+        Raises the last error once every attempt has failed.
+        """
+        last_error: ModbusError | None = None
+
+        for attempt in range(MAX_READ_RETRIES):
+            try:
+                await component.async_update()
+                return
+            except ModbusError as err:
+                last_error = err
+                _LOGGER.warning(
+                    "Attempt %s/%s failed reading %s: %s", attempt + 1, MAX_READ_RETRIES, label, err
                 )
+                if attempt < MAX_READ_RETRIES - 1:
+                    await asyncio.sleep(0.3)
 
-            if response is None:
-                return None
-
-            if response.isError():
-                _LOGGER.warning("Forcing reconnect due to Modbus error frame")
-                self._reset_client()
-                return None
-
-            if not hasattr(response, "registers"):
-                return None
-            _LOGGER.debug("Successfully read %s registers from %s-%s", len(response.registers), address, address + count - 1)
-            return response
-        except (ConnectionException, ModbusIOException, OSError) as err:
-            _LOGGER.error("Modbus communication error while reading %s-%s: %s", address, address + count - 1, err)
-            self._reset_client()
-            return None
-        except Exception as err:
-            _LOGGER.exception("Unexpected error while reading %s-%s: %s", address, address + count - 1, err)
-            return None
+        assert last_error is not None
+        raise last_error
 
     async def _async_update_data(self) -> dict:
         """Fetch Modbus data with fallback to previous values."""
-        if self._last_successful_read is not None:
-            time_since_success = (datetime.now() - self._last_successful_read).total_seconds()
-            if time_since_success > 300:
-                _LOGGER.warning(
-                    "No successful reads for %ss (>5min), forcing reconnect",
-                    int(time_since_success),
-                )
-                self._reset_client()
-
         data = {**self.data_store.get("realtime_data", {})}
 
-        realtime_result = await self.hass.async_add_executor_job(self.read_modbus_realtime_data)
-        if isinstance(realtime_result, tuple):
-            realtime, failed_ranges = realtime_result
-        else:
-            realtime = realtime_result
-            failed_ranges = []
+        realtime = await self.read_modbus_realtime_data()
 
         if realtime is None:
             data["connection_status"] = "Failed"
             await self._handle_connection_failure()
             return data
 
-        if failed_ranges:
-            data["connection_status"] = "Partial"
-        else:
-            data["connection_status"] = "OK"
-            await self._handle_connection_restored()
+        data["connection_status"] = "OK"
+        await self._handle_connection_restored()
 
         data.update(realtime)
         self.data_store["realtime_data"] = realtime
@@ -395,132 +319,83 @@ class ComfoAirHub(DataUpdateCoordinator[dict]):
                 f"Communicatie met {self.name} hersteld", recovered=True
             )
 
-    def _read_ranges(self, ranges: list[tuple[int, int]]) -> tuple[list[int], list[tuple[int, int]]]:
-        """Read a list of (start, count) register ranges, retrying each up to MAX_READ_RETRIES times."""
-        all_registers: list[int] = []
-        failed_ranges: list[tuple[int, int]] = []
-
-        for start, count in ranges:
-            success = False
-            for attempt in range(MAX_READ_RETRIES):
-                response = self._read_holding_registers(address=start, count=count)
-                if response is not None and len(response.registers) >= count:
-                    all_registers.extend(response.registers)
-                    _LOGGER.debug(
-                        "Read %s registers from %s-%s on attempt %s",
-                        len(response.registers),
-                        start,
-                        start + count - 1,
-                        attempt + 1,
-                    )
-                    success = True
-                    break
-                _LOGGER.warning(
-                    "Attempt %s failed for range %s-%s",
-                    attempt + 1,
-                    start,
-                    start + count - 1,
-                )
-                time.sleep(0.3)
-            if not success:
-                failed_ranges.append((start, count))
-
-        if failed_ranges:
-            _LOGGER.warning("Some ranges failed: %s. Proceeding with available data.", failed_ranges)
-
-        return all_registers, failed_ranges
-
-    def _read_static_data(self) -> None:
+    async def _read_static_data(self) -> None:
         """Read static device registers once and cache them in _static_data."""
         _LOGGER.debug("Start reading static data")
-        all_registers, failed_ranges = self._read_ranges(STATIC_READ_RANGES)
-
-        if len(failed_ranges) == len(STATIC_READ_RANGES):
-            return
-
-        decoded = all_registers
-        register_map: dict[int, int] = {}
-        index = 0
-        for start, count in STATIC_READ_RANGES:
-            if (start, count) not in failed_ranges:
-                for offset in range(count):
-                    register_map[start + offset] = index
-                    index += 1
+        try:
+            await self._update_component_with_retry(self._static, "static data")
+        except ModbusError as err:
+            _LOGGER.warning("Reading static data failed: %s", err)
+            return  # self._static_data stays empty; retried on the next poll
 
         static: dict = {}
 
         for register in ("105", "111", "112"):
-            reg_int = int(register)
-            if reg_int in register_map:
-                raw = decoded[register_map[reg_int]]
-                static[register] = ENUM_REGISTERS[register].get(raw, raw)
-            else:
-                static[register] = None
+            raw = self._static.get(register)
+            static[register] = ENUM_REGISTERS[register].get(raw, raw)
 
-        if FIRMWARE_REGISTER in register_map:
-            static["firmware_version"] = self._format_firmware_version(
-                decoded[register_map[FIRMWARE_REGISTER]]
-            )
-        else:
-            static["firmware_version"] = None
+        static["firmware_version"] = self._format_firmware_version(
+            self._static.get(str(FIRMWARE_REGISTER))
+        )
 
-        bl_reg = FIRMWARE_REGISTER + 3
-        if bl_reg in register_map:
-            raw_bl = decoded[register_map[bl_reg]]
-            if raw_bl > 0:
-                bl_major = raw_bl // 100
-                bl_minor = raw_bl % 100
-                static["bootloader_version"] = f"{bl_major}.{bl_minor:02d}"
-                static["hardware_version"] = f"{bl_minor:02d}"
-            else:
-                static["bootloader_version"] = None
-                static["hardware_version"] = None
+        raw_bl = self._static.get(str(FIRMWARE_REGISTER + 3))
+        if raw_bl > 0:
+            bl_major = raw_bl // 100
+            bl_minor = raw_bl % 100
+            static["bootloader_version"] = f"{bl_major}.{bl_minor:02d}"
+            static["hardware_version"] = f"{bl_minor:02d}"
         else:
             static["bootloader_version"] = None
             static["hardware_version"] = None
 
         serial_chars = [
-            chr(decoded[register_map[reg]])
+            chr(value)
             for reg in range(115, 131)
-            if reg in register_map and 0x20 <= decoded[register_map[reg]] <= 0x7E
+            if 0x20 <= (value := self._static.get(str(reg))) <= 0x7E
         ]
         static["serial_number"] = "".join(serial_chars).rstrip() or None
 
         self._static_data = static
         _LOGGER.debug("Finished reading static data")
 
-    def read_modbus_realtime_data(self) -> tuple[dict, list[tuple[int, int]]] | tuple[None, list[tuple[int, int]]]:
-        """Read realtime sensor values."""
+    async def read_modbus_realtime_data(self) -> dict | None:
+        """Read realtime sensor values. Returns None if the read failed."""
         if not self._static_data:
-            self._read_static_data()
+            await self._read_static_data()
 
         _LOGGER.debug("Start reading realtime data")
-        all_registers, failed_ranges = self._read_ranges(READ_RANGES)
+        try:
+            await self._update_component_with_retry(self._realtime, "realtime data")
+        except ModbusTimeoutError:
+            self._consecutive_timeouts += 1
+            if self._consecutive_timeouts >= STUCK_LINK_TIMEOUTS:
+                _LOGGER.warning(
+                    "%s consecutive polls timed out; the connection appears "
+                    "stuck. Disconnecting so the next poll opens a fresh "
+                    "connection.",
+                    self._consecutive_timeouts,
+                )
+                await self._unit.disconnect()
+                # Reset to zero, otherwise every following poll would
+                # disconnect again and a fresh connection would never get a
+                # chance to prove itself.
+                self._consecutive_timeouts = 0
+            return None
+        except ModbusError as err:
+            _LOGGER.warning("Reading realtime data failed: %s", err)
+            return None
 
-        if not all_registers:
-            return None, failed_ranges
-
-        decoded = all_registers
-
-        register_map = {}
-        index = 0
-        for start, count in READ_RANGES:
-            if (start, count) not in failed_ranges:
-                for offset in range(count):
-                    register_map[start + offset] = index
-                    index += 1
+        self._consecutive_timeouts = 0
 
         data = {}
-        for register, description in SENSOR_TYPES.items():
-            if not str(register).isdigit():
+        for register in SENSOR_TYPES:
+            if not register.isdigit():
                 continue
 
-            register_int = int(register)
-            if register_int not in register_map:
+            raw_value = self._realtime.get(register)
+            if raw_value is None:
                 data[register] = None
                 continue
-
-            raw_value = decoded[register_map[register_int]]
 
             if register in ENUM_REGISTERS:
                 data[register] = ENUM_REGISTERS[register].get(raw_value, raw_value)
@@ -530,18 +405,13 @@ class ComfoAirHub(DataUpdateCoordinator[dict]):
                 data[register] = ON_OFF_STATUS.get(raw_value, raw_value)
                 continue
 
-            if description.signed and raw_value >= 0x8000:
-                raw_value -= 0x10000
-
-            value = raw_value * description.scale
-            if description.suggested_display_precision is not None:
-                value = round(value, description.suggested_display_precision)
-            data[register] = value
+            # Already sign-decoded and scaled by the register field in device.py
+            data[register] = raw_value
 
         data.update(self._static_data)
 
         for reg_str, bits in ALARM_BITS.items():
-            raw = decoded[register_map[int(reg_str)]] if int(reg_str) in register_map else None
+            raw = self._realtime.get(reg_str)
             for bit_pos, _ in bits:
                 data[alarm_data_key(reg_str, bit_pos)] = bool(raw & (1 << bit_pos)) if raw is not None else None
 
@@ -584,6 +454,5 @@ class ComfoAirHub(DataUpdateCoordinator[dict]):
         self._condensation_limit_raw = raw_limit
         data["condensation_limit"] = self._rate_limited(raw_limit)
 
-        self._last_successful_read = datetime.now()
         _LOGGER.debug("Finished reading realtime data")
-        return data, failed_ranges
+        return data

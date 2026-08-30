@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import logging
 
-import pymodbus
-
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT, CONF_SCAN_INTERVAL
+from homeassistant.const import CONF_NAME, CONF_SCAN_INTERVAL
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 
@@ -18,8 +16,6 @@ from .const import (
     CONF_ALARM_QUIET_ENABLED,
     CONF_ALARM_QUIET_END,
     CONF_ALARM_QUIET_START,
-    CONF_BAUDRATE,
-    CONF_BYTESIZE,
     CONF_CONDENSATION_MAX_CHANGE,
     CONF_CONDENSATION_SOURCE,
     CONF_CONNECTION_ERROR_DELAY,
@@ -29,10 +25,7 @@ from .const import (
     CONF_CONNECTION_QUIET_END,
     CONF_CONNECTION_QUIET_START,
     CONF_CONTROL_TYPE,
-    CONF_DEVICE,
-    CONF_DEVICE_ID,
     CONF_DEWPOINT_DELTA,
-    CONF_MODE,
     CONF_NOTIFY_ALARMS_MOBILE,
     CONF_NOTIFY_ALARMS_PERSISTENT,
     CONF_NOTIFY_ALARMS_SERVICES,
@@ -42,8 +35,6 @@ from .const import (
     CONF_NOTIFY_PERSISTENT,
     CONF_NOTIFY_WARNINGS_MOBILE,
     CONF_NOTIFY_WARNINGS_SERVICES,
-    CONF_PARITY,
-    CONF_STOPBITS,
     CONF_WARNING_DELAY,
     CONF_WARNING_NOTIFICATION_TITLE,
     CONF_WARNING_NOTIFY_RECOVERY,
@@ -53,8 +44,6 @@ from .const import (
     CONTROL_TYPE_MANUAL,
     DEFAULT_ALARM_DELAY,
     DEFAULT_ALARM_NOTIFICATION_TITLE,
-    DEFAULT_BAUDRATE,
-    DEFAULT_BYTESIZE,
     DEFAULT_CONDENSATION_MAX_CHANGE,
     DEFAULT_CONDENSATION_SOURCE,
     DEFAULT_CONNECTION_ERROR_DELAY,
@@ -68,18 +57,17 @@ from .const import (
     DEFAULT_NOTIFY_CONNECTION_ERRORS_PERSISTENT,
     DEFAULT_NOTIFY_CONNECTION_ERRORS_SERVICES,
     DEFAULT_NOTIFY_RECOVERY,
-    DEFAULT_PARITY,
     DEFAULT_QUIET_HOURS_ENABLED,
     DEFAULT_QUIET_HOURS_END,
     DEFAULT_QUIET_HOURS_START,
     DEFAULT_SCAN_INTERVAL,
-    DEFAULT_STOPBITS,
     DEFAULT_WARNING_NOTIFICATION_TITLE,
     DEFAULT_WARNING_QUIET_HOURS_ENABLED,
     DOMAIN,
     PLATFORMS,
 )
 from .alarm_monitor import AlarmMonitor
+from .connection import active_method, async_setup_unit, build_params
 from .hub import ComfoAirHub
 
 _LOGGER = logging.getLogger(__name__)
@@ -123,31 +111,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
 
     name = entry.data[CONF_NAME]
-    mode = entry.data[CONF_MODE]
     scan_interval = entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
     notify_persistent = _persistent_enabled(entry.data)
 
     _LOGGER.info("Setting up %s.%s", DOMAIN, name)
-    _LOGGER.debug("Used pymodbus version: %s", pymodbus.__version__)
+    _LOGGER.info("%s is using connection method: %s", name, active_method())
     _LOGGER.debug(
         "Connection error delay configured: %s seconds",
         entry.data.get(CONF_CONNECTION_ERROR_DELAY, DEFAULT_CONNECTION_ERROR_DELAY),
     )
     _LOGGER.debug("Alarm delay configured: %s seconds", entry.data.get(CONF_ALARM_DELAY, DEFAULT_ALARM_DELAY))
 
+    params = build_params(entry.data)
+    unit = async_setup_unit(hass, entry, params, DEFAULT_DEVICE_ID)
+
     hub = ComfoAirHub(
         hass=hass,
         name=name,
+        unit=unit,
         scan_interval=scan_interval,
-        mode=mode,
-        device_id=DEFAULT_DEVICE_ID,
-        host=entry.data.get(CONF_HOST),
-        port=entry.data.get(CONF_PORT),
-        device=entry.data.get(CONF_DEVICE),
-        baudrate=entry.data.get(CONF_BAUDRATE, DEFAULT_BAUDRATE),
-        bytesize=entry.data.get(CONF_BYTESIZE, DEFAULT_BYTESIZE),
-        parity=entry.data.get(CONF_PARITY, DEFAULT_PARITY),
-        stopbits=entry.data.get(CONF_STOPBITS, DEFAULT_STOPBITS),
         dewpoint_delta=entry.data.get(CONF_DEWPOINT_DELTA, DEFAULT_DEWPOINT_DELTA),
         condensation_source=entry.data.get(CONF_CONDENSATION_SOURCE, DEFAULT_CONDENSATION_SOURCE),
         condensation_max_change=entry.data.get(
@@ -216,7 +198,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data[DOMAIN][name] = {
         "hub": hub,
-        "mode": mode,
         "alarm_monitor": alarm_monitor,
         "device_info": {
             "identifiers": {(DOMAIN, name)},

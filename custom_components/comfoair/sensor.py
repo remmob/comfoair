@@ -4,11 +4,12 @@ from __future__ import annotations
 import logging
 
 from homeassistant.components.sensor import SensorEntity
-from homeassistant.const import CONF_NAME
+from homeassistant.const import CONF_NAME, EntityCategory, __version__ as HA_VERSION
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_registry import RegistryEntryDisabler
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .connection import HAS_SHARED_CONNECTION, active_method
 from .const import (
     CONF_CONTROL_TYPE,
     CONTROL_TYPE_SENSOR_KEYS,
@@ -49,6 +50,9 @@ async def async_setup_entry(hass, entry, async_add_entities) -> None:
                 enabled_default,
             )
         )
+
+    entities.append(ComfoAirConnectionMethodSensor(hub_name, hub, device_info))
+
     async_add_entities(entities)
 
     # Enable the control sensors that belong to the selected control type, but
@@ -123,3 +127,43 @@ class ComfoAirSensor(CoordinatorEntity, SensorEntity):
             return None
 
         return value
+
+
+class ComfoAirConnectionMethodSensor(CoordinatorEntity, SensorEntity):
+    """Shows which Modbus connection method is active.
+
+    Reads no register — the value comes from connection.py and reflects only
+    whether Home Assistant's `async_get_unit` was available (2026.9+, shared
+    connection) or not (older, this integration opens its own socket). A
+    diagnostic entity (EntityCategory.DIAGNOSTIC), so it appears at the
+    bottom of the device rather than among the measurements.
+    """
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:transit-connection-variant"
+
+    def __init__(self, platform_name, hub, device_info) -> None:
+        self._platform_name = platform_name
+        self._attr_device_info = device_info
+        super().__init__(coordinator=hub)
+
+    @property
+    def name(self):
+        return f"{self._platform_name} connection method"
+
+    @property
+    def unique_id(self):
+        return f"{self._platform_name}_connection_method"
+
+    @property
+    def native_value(self):
+        return active_method()
+
+    @property
+    def extra_state_attributes(self):
+        # Include the HA version so a screenshot shows at a glance why this
+        # method was chosen.
+        return {
+            "shared_connection_available": HAS_SHARED_CONNECTION,
+            "home_assistant_version": HA_VERSION,
+        }

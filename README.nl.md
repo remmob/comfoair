@@ -59,6 +59,13 @@ Meer info en updates:
 ## Hardware vereisten
 Deze integratie gebruikt Modbus om verbinding te maken met de Zehnder E300/E400 unit.
 
+> **Beta-opmerking (v1.2.0-beta):** vanaf Home Assistant 2026.9 deelt ComfoAir zijn Modbus
+> TCP/RTU-verbinding voortaan met andere integraties die met dezelfde gateway praten
+> (bijvoorbeeld een Elfin EW-11), in plaats van een eigen verbinding te openen. Op oudere
+> Home Assistant-versies opent hij nog steeds zijn eigen verbinding, precies zoals voorheen —
+> daar verandert niets. Dit raakt alleen hoe de verbinding onder water beheerd wordt; sensoren,
+> instellingen en registergedrag blijven ongewijzigd.
+
 ![Display](Images/Display.png)
 
 Je kunt een USB naar RS485 adapter gebruiken om verbinding te maken met de unit. De adapter moet worden aangesloten op de Modbus-poort van de unit.<br/>

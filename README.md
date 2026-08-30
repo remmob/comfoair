@@ -59,6 +59,12 @@ More info and updates:
 ## Hardware Requirements
 This integration uses Modbus to connect to the Zehnder E300/E400 unit.
 
+> **Beta note (v1.2.0-beta):** on Home Assistant 2026.9 and newer, ComfoAir now shares its
+> Modbus TCP/RTU connection with other integrations talking to the same gateway (e.g. an
+> Elfin EW-11), instead of opening its own socket. On older Home Assistant versions it opens
+> its own connection exactly as before — nothing changes there. This only affects how the
+> connection is managed under the hood; sensors, options and register behaviour are unchanged.
+
 ![Display](Images/Display.png)
 
 You can use a USB to RS485 adapter to connect to the unit. The adapter should be connected to the Modbus port on the unit.<br/>
