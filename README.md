@@ -1,7 +1,7 @@
 [![en](https://img.shields.io/badge/lang-en-red.svg)](README.md)
 [![nl](https://img.shields.io/badge/lang-nl-orange.svg)](README.nl.md)
 
-![Version](https://img.shields.io/github/v/release/remmob/comfoair 'Release') ![Downloads](https://img.shields.io/github/downloads/remmob/comfoair/total 'Downloads') ![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg 'Default Home') ![HA min](https://img.shields.io/badge/Home%20Assistant-2025.12%2B-41BDF5.svg 'Minimum Home Assistant version') [![total issues](https://img.shields.io/github/issues/remmob/comfoair 'Total issues')](https://github.com/remmob/comfoair/issues) ![Stars](https://img.shields.io/github/stars/remmob/comfoair)
+![Version](https://img.shields.io/github/v/release/remmob/comfoair 'Release') ![Downloads](https://img.shields.io/github/downloads/remmob/comfoair/total 'Downloads') ![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg 'Default Home') [![Marketplace](https://img.shields.io/badge/Marketplace-Default-41BDF5.svg 'Home Assistant Marketplace')](https://my.home-assistant.io/redirect/marketplace_repository/?owner=remmob&repository=comfoair&category=integration) ![HA min](https://img.shields.io/badge/Home%20Assistant-2025.12%2B-41BDF5.svg 'Minimum Home Assistant version') [![total issues](https://img.shields.io/github/issues/remmob/comfoair 'Total issues')](https://github.com/remmob/comfoair/issues) ![Stars](https://img.shields.io/github/stars/remmob/comfoair)
 
 # Zehnder ComfoAir E300/E400 Home Assistant Integration
 
@@ -22,7 +22,18 @@ A Home Assistant custom integration for the Zehnder ComfoAir E300/E400 ventilati
 
 ## 📦 Installation
 
-### HACS (default store)
+### Marketplace (Home Assistant 2026.11 and newer)
+
+Since Home Assistant 2026.11, HACS is built into Home Assistant as the **Marketplace**. Zehnder ComfoAir is available there.
+
+[![Open your Home Assistant instance and open a repository inside the Marketplace.](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=remmob&repository=comfoair&category=integration)
+
+1. Go to **Settings** > **Marketplace**.
+2. Search for **Zehnder ComfoAir** and open it (or use the button above).
+3. Click **Download**.
+4. **Restart Home Assistant**.
+
+### HACS (default store, Home Assistant 2026.10 and older)
 
 Zehnder ComfoAir is available in the [HACS](https://hacs.xyz) default store.
 
