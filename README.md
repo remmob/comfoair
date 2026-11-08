@@ -1,7 +1,7 @@
 [![en](https://img.shields.io/badge/lang-en-red.svg)](README.md)
 [![nl](https://img.shields.io/badge/lang-nl-orange.svg)](README.nl.md)
 
-![Version](https://img.shields.io/github/v/release/remmob/comfoair 'Release') ![Downloads](https://img.shields.io/github/downloads/remmob/comfoair/total 'Downloads') ![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg 'Default Home') [![Marketplace](https://img.shields.io/badge/Marketplace-Default-41BDF5.svg 'Home Assistant Marketplace')](https://my.home-assistant.io/redirect/marketplace_repository/?owner=remmob&repository=comfoair&category=integration) ![HA min](https://img.shields.io/badge/Home%20Assistant-2025.12%2B-41BDF5.svg 'Minimum Home Assistant version') [![total issues](https://img.shields.io/github/issues/remmob/comfoair 'Total issues')](https://github.com/remmob/comfoair/issues) ![Stars](https://img.shields.io/github/stars/remmob/comfoair)
+![Version](https://img.shields.io/github/v/release/remmob/comfoair 'Release') ![Downloads](https://img.shields.io/github/downloads/remmob/comfoair/total 'Downloads') ![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg 'Default Home') [![Marketplace](https://img.shields.io/badge/Marketplace-Default-41BDF5.svg 'Home Assistant Marketplace')](https://my.home-assistant.io/redirect/marketplace_repository/?owner=remmob&repository=comfoair&category=integration) ![HA min](https://img.shields.io/badge/Home%20Assistant-2026.5%2B-41BDF5.svg 'Minimum Home Assistant version') [![total issues](https://img.shields.io/github/issues/remmob/comfoair 'Total issues')](https://github.com/remmob/comfoair/issues) ![Stars](https://img.shields.io/github/stars/remmob/comfoair)
 
 # Zehnder ComfoAir E300/E400 Home Assistant Integration
 
@@ -96,13 +96,15 @@ Go to the Integrations page in Home Assistant and click on "Add Integration". Se
 
 Give the unit a name (default: "zehnder"), used as a prefix for all its entities. The device ID cannot be changed and should be set to 1. Then choose the connection type (TCP or serial).
 
-For a **serial (Modbus RTU)** connection, pick one of the available serial ports on your system. The connection settings are fixed and cannot be changed:
+For a **serial (Modbus RTU)** connection, pick a port in Home Assistant's port picker: a USB adapter or the serial proxy of an ESPHome device. The connection settings are fixed and cannot be changed:
 - Baudrate: 19200
 - Parity: Even
 - Stopbits: 1
 - Bytesize: 8
 
 ![Serial connection](Images/rtu-en.png)
+
+*ℹ️ Since v1.3.0 the serial port field is Home Assistant's own port picker; the screenshot still shows the old dropdown.*
 
 For a **TCP** connection, provide the IP address and port of your Modbus TCP gateway. The default port is 502. Configure your Modbus RTU-to-TCP gateway with the same fixed serial settings as above.
 

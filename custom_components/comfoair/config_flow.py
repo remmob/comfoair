@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import asyncio
 import ipaddress
 import logging
 import re
 
-import serial.tools.list_ports
 import voluptuous as vol
 
 from homeassistant import config_entries
@@ -399,10 +397,26 @@ def _tcp_schema_fields(current: dict) -> dict:
     }
 
 
-def _serial_schema_fields(current: dict, serial_ports: list[str], default_device: str) -> dict:
+# Home Assistant's own serial port picker (HA 2026.5+), the same one ZHA and
+# Z-Wave use. Unlike pyserial's port listing it also shows the serial proxies
+# of ESPHome devices (esphome-hass:// URLs), which tmodbus opens through
+# serialx like any other port.
+SERIAL_PORT_SELECTOR = selector.SerialPortSelector(
+    selector.SerialPortSelectorConfig()
+)
+
+
+def _device_key(default_device: str) -> vol.Required:
+    """Key of the serial port field; preselects the stored port if there is one."""
+    if default_device:
+        return vol.Required(CONF_DEVICE, default=default_device)
+    return vol.Required(CONF_DEVICE)
+
+
+def _serial_schema_fields(current: dict, default_device: str) -> dict:
     """Shared serial connection fields for the setup, reconfigure and options flows."""
     return {
-        vol.Required(CONF_DEVICE, default=default_device): vol.In(serial_ports) if serial_ports else str,
+        _device_key(default_device): SERIAL_PORT_SELECTOR,
         vol.Required(
             CONF_BAUDRATE,
             default=str(current.get(CONF_BAUDRATE, DEFAULT_BAUDRATE)),
@@ -443,14 +457,6 @@ def _normalize_device_id(data: dict) -> dict:
     normalized = dict(data)
     normalized[CONF_DEVICE_ID] = DEFAULT_DEVICE_ID
     return normalized
-
-
-async def _get_serial_ports() -> list[str]:
-    loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(
-        None,
-        lambda: [port.device for port in serial.tools.list_ports.comports()],
-    )
 
 
 @callback
@@ -530,27 +536,23 @@ class ComfoAirConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_serial(self, user_input=None) -> FlowResult:
         errors: dict[str, str] = {}
-        serial_ports = await _get_serial_ports()
-        default_device = self._data.get(CONF_DEVICE) or (serial_ports[0] if serial_ports else "")
+        default_device = self._data.get(CONF_DEVICE, "")
 
         if user_input is not None:
             candidate = _normalize_device_id({**self._data, **user_input})
 
-            if serial_ports and candidate[CONF_DEVICE] not in serial_ports:
-                errors[CONF_DEVICE] = "invalid_serial_port"
-            else:
-                self._data = {
-                    **candidate,
-                    CONF_SCAN_INTERVAL: candidate.get(
-                        CONF_SCAN_INTERVAL,
-                        DEFAULT_SCAN_INTERVAL,
-                    ),
-                }
-                return await self.async_step_control_type()
+            self._data = {
+                **candidate,
+                CONF_SCAN_INTERVAL: candidate.get(
+                    CONF_SCAN_INTERVAL,
+                    DEFAULT_SCAN_INTERVAL,
+                ),
+            }
+            return await self.async_step_control_type()
 
         return self.async_show_form(
             step_id="serial",
-            data_schema=vol.Schema(_serial_schema_fields(self._data, serial_ports, default_device)),
+            data_schema=vol.Schema(_serial_schema_fields(self._data, default_device)),
             errors=errors,
         )
 
@@ -654,22 +656,17 @@ class ComfoAirConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if entry is None:
             return self.async_abort(reason="unknown")
 
-        serial_ports = await _get_serial_ports()
-
         if user_input is not None:
             merged = _normalize_device_id({**entry.data, **self._reconfigure_data, **user_input})
             merged[CONF_MODE] = MODE_SERIAL
 
-            if serial_ports and merged[CONF_DEVICE] not in serial_ports:
-                errors[CONF_DEVICE] = "invalid_serial_port"
-            else:
-                self._reconfigure_data = merged
-                return await self.async_step_reconfigure_control_type()
+            self._reconfigure_data = merged
+            return await self.async_step_reconfigure_control_type()
 
-        default_device = entry.data.get(CONF_DEVICE, serial_ports[0] if serial_ports else "")
+        default_device = entry.data.get(CONF_DEVICE, "")
         return self.async_show_form(
             step_id="reconfigure_serial",
-            data_schema=vol.Schema(_serial_schema_fields(entry.data, serial_ports, default_device)),
+            data_schema=vol.Schema(_serial_schema_fields(entry.data, default_device)),
             errors=errors,
         )
 
@@ -769,12 +766,11 @@ class ComfoAirOptionsFlow(config_entries.OptionsFlow):
         }
 
         if mode == MODE_SERIAL:
-            serial_ports = await _get_serial_ports()
-            default_device = self.config_entry.data.get(CONF_DEVICE, serial_ports[0] if serial_ports else "")
+            default_device = self.config_entry.data.get(CONF_DEVICE, "")
             schema = vol.Schema(
                 {
                     **device_id_field,
-                    **_serial_schema_fields(self.config_entry.data, serial_ports, default_device),
+                    **_serial_schema_fields(self.config_entry.data, default_device),
                     **common_fields,
                 }
             )

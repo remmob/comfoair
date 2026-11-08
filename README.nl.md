@@ -1,7 +1,7 @@
 [![en](https://img.shields.io/badge/lang-en-red.svg)](README.md)
 [![nl](https://img.shields.io/badge/lang-nl-orange.svg)](README.nl.md)
 
-![Version](https://img.shields.io/github/v/release/remmob/comfoair 'Release') ![Downloads](https://img.shields.io/github/downloads/remmob/comfoair/total 'Downloads') ![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg 'Default Home') [![Marketplace](https://img.shields.io/badge/Marketplace-Default-41BDF5.svg 'Home Assistant Marketplace')](https://my.home-assistant.io/redirect/marketplace_repository/?owner=remmob&repository=comfoair&category=integration) ![HA min](https://img.shields.io/badge/Home%20Assistant-2025.12%2B-41BDF5.svg 'Minimum Home Assistant version') [![total issues](https://img.shields.io/github/issues/remmob/comfoair 'Total issues')](https://github.com/remmob/comfoair/issues) ![Stars](https://img.shields.io/github/stars/remmob/comfoair)
+![Version](https://img.shields.io/github/v/release/remmob/comfoair 'Release') ![Downloads](https://img.shields.io/github/downloads/remmob/comfoair/total 'Downloads') ![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg 'Default Home') [![Marketplace](https://img.shields.io/badge/Marketplace-Default-41BDF5.svg 'Home Assistant Marketplace')](https://my.home-assistant.io/redirect/marketplace_repository/?owner=remmob&repository=comfoair&category=integration) ![HA min](https://img.shields.io/badge/Home%20Assistant-2026.5%2B-41BDF5.svg 'Minimum Home Assistant version') [![total issues](https://img.shields.io/github/issues/remmob/comfoair 'Total issues')](https://github.com/remmob/comfoair/issues) ![Stars](https://img.shields.io/github/stars/remmob/comfoair)
 
 # Zehnder ComfoAir E300/E400 Home Assistant Integratie
 
@@ -97,13 +97,15 @@ Ga naar de pagina Integraties in Home Assistant en klik op "Integratie toevoegen
 
 Geef de unit een naam (standaard: "zehnder"), die als prefix voor alle entiteiten wordt gebruikt. Het device ID kan niet gewijzigd worden en moet op 1 staan. Kies vervolgens het verbindingstype (TCP of serieel).
 
-Voor een **seriële (Modbus RTU)** verbinding kies je een van de beschikbare seriële poorten op je systeem. De verbindingsinstellingen liggen vast en kunnen niet gewijzigd worden:
+Voor een **seriële (Modbus RTU)** verbinding kies je een poort in de poortkiezer van Home Assistant: een USB-adapter of de seriële proxy van een ESPHome-apparaat. De verbindingsinstellingen liggen vast en kunnen niet gewijzigd worden:
 - Baudrate: 19200
 - Pariteit: Even
 - Stopbits: 1
 - Bytesize: 8
 
 ![Seriële verbinding](Images/rtu-nl.png)
+
+*ℹ️ Sinds v1.3.0 is het veld voor de seriële poort de poortkiezer van Home Assistant zelf; de screenshot toont nog de oude keuzelijst.*
 
 Voor een **TCP**-verbinding geef je het IP-adres en de poort van je Modbus TCP-gateway op. De standaardpoort is 502. Configureer je Modbus RTU-naar-TCP-gateway met dezelfde vaste seriële instellingen als hierboven.
 
